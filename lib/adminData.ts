@@ -214,7 +214,14 @@ async function saveTransferToSupabase(request: TransferRequest) {
 async function saveReceiptToSupabase(receipt: Receipt) {
   if (!isSupabaseConfigured || !supabase) return;
   try {
-    await supabase.from("receipts").upsert([mapReceiptToSupabaseRow(receipt)], { onConflict: "reference" });
+    const row = mapReceiptToSupabaseRow(receipt);
+    await supabase.from("receipts").upsert([row], { onConflict: "reference" });
+    await supabase.from("receipts").update({
+      status: row.status,
+      declined_reason: row.declined_reason,
+      admin_name: row.admin_name,
+      approval_date: row.approval_date,
+    }).eq("reference", receipt.reference);
   } catch {
     // ignore Supabase write errors and keep local cache intact
   }
@@ -540,11 +547,18 @@ export async function createReceiptFromTransfer(request: TransferRequest) {
     approvalDate: request.approvalDate,
   };
 
+  const finalReceipt: Receipt = {
+    ...receipt,
+    declinedReason: request.status === "Declined" ? request.declineReason : undefined,
+    adminName: request.adminName,
+    approvalDate: request.approvalDate,
+  };
+
   if (existing) {
     const updated = {
       ...existing,
-      ...receipt,
-      declinedReason: request.declineReason ?? existing.declinedReason,
+      ...finalReceipt,
+      declinedReason: request.status === "Declined" ? request.declineReason ?? existing.declinedReason : undefined,
       adminName: request.adminName ?? existing.adminName,
       approvalDate: request.approvalDate ?? existing.approvalDate,
     };
@@ -554,10 +568,10 @@ export async function createReceiptFromTransfer(request: TransferRequest) {
     return updated;
   }
 
-  const receipts = [receipt, ...getReceipts()];
+  const receipts = [finalReceipt, ...getReceipts()];
   saveReceipts(receipts);
-  await saveReceiptToSupabase(receipt);
-  return receipt;
+  await saveReceiptToSupabase(finalReceipt);
+  return finalReceipt;
 }
 
 export function getCustomers(): CustomerProfile[] {
