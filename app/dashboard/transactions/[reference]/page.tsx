@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopNavbar from "@/components/dashboard/TopNavbar";
-import { getReceipt, Receipt } from "@/lib/adminData";
+import { loadReceiptsFromSupabase, Receipt } from "@/lib/adminData";
 
 export default function ReceiptPage() {
   const params = useParams();
@@ -12,8 +12,20 @@ export default function ReceiptPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   useEffect(() => {
-    if (!reference) return;
-    setReceipt(getReceipt(reference) ?? null);
+    let isMounted = true;
+
+    async function loadReceipt() {
+      if (!reference) return;
+      const receipts = await loadReceiptsFromSupabase(true);
+      if (isMounted) {
+        setReceipt(receipts.find((item) => item.reference === reference) ?? null);
+      }
+    }
+
+    loadReceipt();
+    return () => {
+      isMounted = false;
+    };
   }, [reference]);
 
   if (!receipt) {

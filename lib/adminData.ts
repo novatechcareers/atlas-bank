@@ -101,6 +101,10 @@ function mapTransferToSupabaseRow(request: TransferRequest) {
 }
 
 function mapDbTransferToClientRow(item: Record<string, unknown>): TransferRequest {
+  const approvalDate = item.approval_date ?? item.approvalDate;
+  const adminName = item.admin_name ?? item.adminName;
+  const declineReason = item.decline_reason ?? item.declineReason ?? item.declinedReason ?? item.declined_reason;
+
   return {
     reference: String(item.reference ?? ""),
     customerName: String(item.customer_name ?? item.customerName ?? ""),
@@ -116,9 +120,9 @@ function mapDbTransferToClientRow(item: Record<string, unknown>): TransferReques
     submissionTime: String(item.submission_time ?? item.submissionTime ?? ""),
     status: (item.status as TransferStatus) ?? "Pending",
     direction: (item.direction as TransferDirection) ?? "outbound",
-    approvalDate: item.approval_date ? String(item.approval_date) : undefined,
-    adminName: item.admin_name ? String(item.admin_name) : undefined,
-    declineReason: item.decline_reason ? String(item.decline_reason) : undefined,
+    approvalDate: approvalDate ? String(approvalDate) : undefined,
+    adminName: adminName ? String(adminName) : undefined,
+    declineReason: declineReason ? String(declineReason) : undefined,
   };
 }
 
@@ -144,6 +148,10 @@ function mapReceiptToSupabaseRow(receipt: Receipt) {
 }
 
 function mapDbReceiptToClientRow(item: Record<string, unknown>): Receipt {
+  const declinedReason = item.declined_reason ?? item.declinedReason ?? item.decline_reason ?? item.declineReason;
+  const adminName = item.admin_name ?? item.adminName;
+  const approvalDate = item.approval_date ?? item.approvalDate;
+
   return {
     reference: String(item.reference ?? ""),
     status: (item.status as ReceiptStatus) ?? "PENDING",
@@ -158,9 +166,9 @@ function mapDbReceiptToClientRow(item: Record<string, unknown>): Receipt {
     totalDebit: Number(item.total_debit ?? item.totalDebit ?? 0),
     description: item.description ? String(item.description) : undefined,
     swift: item.swift ? String(item.swift) : undefined,
-    declinedReason: item.declined_reason ? String(item.declined_reason) : undefined,
-    adminName: item.admin_name ? String(item.admin_name) : undefined,
-    approvalDate: item.approval_date ? String(item.approval_date) : undefined,
+    declinedReason: declinedReason ? String(declinedReason) : undefined,
+    adminName: adminName ? String(adminName) : undefined,
+    approvalDate: approvalDate ? String(approvalDate) : undefined,
   };
 }
 
@@ -454,11 +462,13 @@ export async function createFundedTransferRequest({
 export async function approveTransfer(reference: string, adminName: string) {
   const transfers: TransferRequest[] = getTransferRequests().map((item) => {
     if (item.reference !== reference) return item;
+    const nextDate = new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
     return {
       ...item,
       status: "Approved" as TransferStatus,
-      approvalDate: new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }),
+      approvalDate: nextDate,
       adminName,
+      declineReason: undefined,
     };
   });
   saveTransferRequests(transfers);
@@ -473,11 +483,12 @@ export async function approveTransfer(reference: string, adminName: string) {
 export async function declineTransfer(reference: string, reason: string, adminName: string) {
   const transfers: TransferRequest[] = getTransferRequests().map((item) => {
     if (item.reference !== reference) return item;
+    const nextDate = new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
     return {
       ...item,
       status: "Declined" as TransferStatus,
       declineReason: reason,
-      approvalDate: new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }),
+      approvalDate: nextDate,
       adminName,
     };
   });
@@ -524,15 +535,22 @@ export async function createReceiptFromTransfer(request: TransferRequest) {
     amount: request.amount,
     fee: isDeclined ? 0 : request.fee,
     totalDebit: isDeclined ? 0 : request.totalDebit,
-    declinedReason: request.declineReason,
+    declinedReason: request.status === "Declined" ? request.declineReason : undefined,
     adminName: request.adminName,
     approvalDate: request.approvalDate,
   };
 
   if (existing) {
-    const updated = { ...existing, ...receipt };
+    const updated = {
+      ...existing,
+      ...receipt,
+      declinedReason: request.declineReason ?? existing.declinedReason,
+      adminName: request.adminName ?? existing.adminName,
+      approvalDate: request.approvalDate ?? existing.approvalDate,
+    };
     const receipts = getReceipts().map((item) => (item.reference === request.reference ? updated : item));
     saveReceipts(receipts);
+    await saveReceiptToSupabase(updated);
     return updated;
   }
 
