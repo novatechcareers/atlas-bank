@@ -1,5 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { applyFundingToNewUserSession, createNewUserTransfer, getDefaultNewUserSession } from "@/lib/newUserData";
+import { createNewUserTransfer, fetchRegisteredNewUserByEmail, getDefaultNewUserSession } from "@/lib/newUserData";
 
 export type TransferStatus = "Pending" | "Approved" | "Declined";
 
@@ -443,16 +443,23 @@ export async function createTransferRequest(partial: Omit<TransferRequest, "refe
 export async function fundNewUserAccount(amount: number, targetEmail?: string, description?: string) {
   const normalizedEmail = targetEmail?.trim().toLowerCase();
   const fallbackSession = getDefaultNewUserSession();
+  const registeredUser = normalizedEmail ? await fetchRegisteredNewUserByEmail(normalizedEmail) : null;
   const existingSession = typeof window !== "undefined" ? window.localStorage.getItem("atlasNewUserSession") : null;
   const parsedSession = existingSession ? JSON.parse(existingSession) : null;
   const nextSession = parsedSession ?? fallbackSession;
+  const targetAccountNumber = registeredUser?.accountNumber
+    ?? (nextSession.customerEmail?.toLowerCase() === normalizedEmail ? nextSession.accountNumber : undefined);
+
+  if (!targetAccountNumber) {
+    throw new Error("The selected customer does not have a shared account number yet.");
+  }
 
   const transfer = await createNewUserTransfer({
-    customerName: nextSession.customerName ?? fallbackSession.customerName,
+    customerName: registeredUser?.fullName ?? nextSession.customerName ?? fallbackSession.customerName,
     customerEmail: normalizedEmail || nextSession.customerEmail || fallbackSession.customerEmail,
     recipient: "Atlas Bank Funding",
     bank: "Atlas Bank",
-    accountNumber: nextSession.accountNumber ?? fallbackSession.accountNumber,
+    accountNumber: targetAccountNumber,
     swift: nextSession.swift ?? fallbackSession.swift,
     amount: Number(amount.toFixed(2)),
     fee: 0,

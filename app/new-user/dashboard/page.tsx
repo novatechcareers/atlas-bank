@@ -6,7 +6,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import QuickActions from "@/components/dashboard/QuickActions";
 import TransactionList from "@/components/dashboard/TransactionList";
-import { getNewUserSession, getDefaultNewUserSession, type NewUserAccount } from "@/lib/newUserData";
+import { getNewUserSession, refreshNewUserSessionBalance, type NewUserAccount } from "@/lib/newUserData";
 
 export default function NewUserDashboardPage() {
   const router = useRouter();
@@ -14,13 +14,24 @@ export default function NewUserDashboardPage() {
   const [showProfileNotice, setShowProfileNotice] = useState(false);
 
   useEffect(() => {
-    const storedSession = getNewUserSession();
-    if (storedSession) {
-      setSession(storedSession);
-      if (!storedSession.profileCompleted) {
+    const loadSession = async () => {
+      const storedSession = await refreshNewUserSessionBalance();
+      if (storedSession) {
+        setSession(storedSession);
+        if (!storedSession.profileCompleted) {
+          setShowProfileNotice(true);
+        }
+        return;
+      }
+
+      const fallbackSession = getNewUserSession();
+      if (fallbackSession && !fallbackSession.profileCompleted) {
         setShowProfileNotice(true);
       }
-    }
+      setSession(fallbackSession);
+    };
+
+    loadSession();
   }, []);
 
   const heroLabel = useMemo(

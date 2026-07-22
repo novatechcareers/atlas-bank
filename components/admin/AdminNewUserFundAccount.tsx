@@ -40,18 +40,22 @@ export default function AdminNewUserFundAccount() {
       return;
     }
 
-    const created = await createFundedTransferRequest({
-      amount: parsedAmount,
-      description: description.trim() || "Admin funding",
-      reference: reference.trim() || undefined,
-      target: "new-user",
-      targetEmail: selectedUserEmail,
-    });
+    try {
+      const created = await createFundedTransferRequest({
+        amount: parsedAmount,
+        description: description.trim() || "Admin funding",
+        reference: reference.trim() || undefined,
+        target: "new-user",
+        targetEmail: selectedUserEmail,
+      });
 
-    setMessage(`Funding recorded for ${selectedUserEmail}. Reference: ${created.reference}`);
-    setAmount("1000");
-    setDescription("Admin funding");
-    setReference("");
+      setMessage(`Funding recorded for ${selectedUserEmail}. Reference: ${created.reference}`);
+      setAmount("1000");
+      setDescription("Admin funding");
+      setReference("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Funding could not be recorded.");
+    }
   };
 
   return (

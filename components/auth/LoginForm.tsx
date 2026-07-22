@@ -108,6 +108,7 @@ export default function LoginForm() {
         ...getDefaultNewUserSession(),
         customerName: matchingRegisteredUser.fullName || "New Customer",
         customerEmail: normalizedEmail,
+        accountNumber: matchingRegisteredUser.accountNumber || getDefaultNewUserSession().accountNumber,
         phone: matchingRegisteredUser.phone || "",
         profileCompleted: false,
         accountType: "Atlas New Customer",

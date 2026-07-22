@@ -6,7 +6,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import TransferForm from "@/components/dashboard/TransferForm";
 import TransferSummary from "@/components/dashboard/TransferSummary";
-import { createNewUserTransfer, getNewUserSession, saveNewUserSession, type NewUserAccount } from "@/lib/newUserData";
+import { createNewUserTransfer, getNewUserSession, refreshNewUserSessionBalance, type NewUserAccount } from "@/lib/newUserData";
 
 const banks = ["Atlas Bank", "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citibank", "HSBC", "Barclays", "Santander", "Deutsche Bank", "Standard Chartered"];
 const transferTypes = ["Internal Transfer", "Domestic Transfer", "International Wire"];
@@ -45,8 +45,11 @@ export default function NewUserTransferPage() {
   const validationMessage = hasInsufficientBalance ? "You do not have enough available balance to send this transfer." : parsedAmount <= 0 ? "Enter an amount greater than $0.00." : "";
 
   useEffect(() => {
-    const storedSession = getNewUserSession();
-    setSession(storedSession);
+    const loadSession = async () => {
+      setSession(await refreshNewUserSessionBalance() ?? getNewUserSession());
+    };
+
+    loadSession();
   }, []);
 
   const summary = useMemo(() => ({
