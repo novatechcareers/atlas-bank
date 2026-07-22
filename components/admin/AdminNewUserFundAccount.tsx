@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createFundedTransferRequest } from "@/lib/adminData";
-import { getRegisteredNewUsers } from "@/lib/newUserData";
+import { fetchRegisteredNewUsers } from "@/lib/newUserData";
 
 type RegisteredUser = {
   email: string;
@@ -19,7 +19,11 @@ export default function AdminNewUserFundAccount() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    setRegisteredUsers(getRegisteredNewUsers());
+    const loadUsers = async () => {
+      setRegisteredUsers(await fetchRegisteredNewUsers());
+    };
+
+    loadUsers();
   }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

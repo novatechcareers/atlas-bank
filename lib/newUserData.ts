@@ -131,32 +131,98 @@ export async function saveNewUserCustomerToSupabase({
   fullName,
   email,
   phone,
+  password,
   status = "pending",
   createdAt = new Date().toISOString(),
 }: {
   fullName: string;
   email: string;
   phone: string;
+  password?: string;
   status?: string;
   createdAt?: string;
 }) {
   if (!isSupabaseConfigured || !supabase) return null;
 
-  const { error } = await supabase.from("customers").upsert([
-    {
-      full_name: fullName,
-      email,
-      phone,
-      created_at: createdAt,
-      status,
-    },
-  ], { onConflict: "email" });
+  const row: Record<string, unknown> = {
+    full_name: fullName,
+    email,
+    phone,
+    created_at: createdAt,
+    status,
+  };
+
+  if (password) {
+    row.password = password;
+  }
+
+  const { error } = await supabase.from("customers").upsert([row], { onConflict: "email" });
 
   if (error) {
+    const missingPasswordColumn = /column\s+"password"\s+does not exist/i.test(error.message ?? "");
+
+    if (password && missingPasswordColumn) {
+      const retryRow = { ...row };
+      delete retryRow.password;
+      const { error: retryError } = await supabase.from("customers").upsert([retryRow], { onConflict: "email" });
+      if (retryError) {
+        throw retryError;
+      }
+      return true;
+    }
+
     throw error;
   }
 
   return true;
+}
+
+export async function fetchRegisteredNewUserByEmail(email: string) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  const selectFields = "full_name, email, phone, password";
+  const { data, error } = await supabase
+    .from("customers")
+    .select(selectFields)
+    .eq("email", email)
+    .single();
+
+  if (error) {
+    const missingPasswordColumn = /column\s+"password"\s+does not exist/i.test(error.message ?? "");
+    if (missingPasswordColumn) {
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("customers")
+        .select("full_name, email, phone")
+        .eq("email", email)
+        .single();
+      if (!fallbackError && fallbackData) {
+        return {
+          email: String(fallbackData.email ?? ""),
+          fullName: String(fallbackData.full_name ?? "New Customer"),
+          phone: fallbackData.phone ? String(fallbackData.phone) : undefined,
+          password: undefined,
+        };
+      }
+    }
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    email: String(data.email ?? ""),
+    fullName: String(data.full_name ?? "New Customer"),
+    phone: data.phone ? String(data.phone) : undefined,
+    password: data.password ? String(data.password) : undefined,
+  };
+}
+
+export async function fetchRegisteredNewUserByEmailAndPassword(email: string, password: string) {
+  const user = await fetchRegisteredNewUserByEmail(email);
+  if (!user || !user.password) return null;
+  return user.password === password ? user : null;
 }
 
 export function markNewUserProfileCompleted(session: NewUserAccount) {
@@ -218,6 +284,27 @@ export function getRegisteredNewUsers(): Array<{ email: string; fullName: string
     fullName: user.fullName || "New Customer",
     phone: user.phone || "",
   })).filter((user) => user.email);
+}
+
+export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; fullName: string; phone?: string }>> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("full_name, email, phone")
+      .order("created_at", { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data
+        .map((item) => ({
+          email: String(item.email ?? ""),
+          fullName: String(item.full_name ?? "New Customer"),
+          phone: item.phone ? String(item.phone) : undefined,
+        }))
+        .filter((user) => user.email);
+    }
+  }
+
+  return getRegisteredNewUsers();
 }
 
 function getLocalNewUserTransfers() {
@@ -442,12 +529,14 @@ export async function updateNewUserTransferStatus(reference: string, status: New
 }
 
 export async function createNewUserReceiptFromTransfer(request: NewUserTransfer) {
+  const currentSession = getNewUserSession();
+
   const receipt: NewUserReceipt = {
     reference: request.reference,
     status: request.status === "Approved" ? "SUCCESSFUL" : request.status === "Declined" ? "DECLINED" : "PENDING",
     date: request.approvalDate ?? request.submissionTime,
     senderName: request.customerName,
-    senderAccount: request.accountNumber,
+    senderAccount: currentSession?.accountNumber ?? request.accountNumber,
     recipientName: request.recipient,
     recipientBank: request.bank,
     recipientAccount: request.accountNumber,

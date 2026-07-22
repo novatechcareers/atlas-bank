@@ -152,6 +152,7 @@ export default function RegisterForm() {
           fullName: normalizedName,
           email: normalizedEmail,
           phone: normalizedPhone,
+          password: values.password,
           status: "pending",
           createdAt: new Date().toISOString(),
         });

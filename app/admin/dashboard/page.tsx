@@ -8,7 +8,7 @@ import DashboardCard from "@/components/admin/DashboardCard";
 import AdminFundAccount from "@/components/admin/AdminFundAccount";
 import { getCustomers, loadLinkedCardsFromSupabase, loadTransferRequestsFromSupabase } from "@/lib/adminData";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { getRegisteredNewUsers } from "@/lib/newUserData";
+import { fetchRegisteredNewUsers } from "@/lib/newUserData";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function AdminDashboardPage() {
       setPendingCount(transfers.filter((item) => item.status === "Pending").length);
       const cards = await loadLinkedCardsFromSupabase(true);
       setLinkedCardsCount(cards.length);
-      setRegisteredUsers(getRegisteredNewUsers());
+      setRegisteredUsers(await fetchRegisteredNewUsers());
     };
 
     loadAdminStats();

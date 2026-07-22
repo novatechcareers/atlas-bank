@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DEMO_CUSTOMER_EMAIL, formatCurrency, getAvailableBalance } from "@/lib/adminData";
-import { getDefaultNewUserSession, saveNewUserSession } from "@/lib/newUserData";
+import { fetchRegisteredNewUserByEmailAndPassword, getDefaultNewUserSession, saveNewUserSession } from "@/lib/newUserData";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type FormValues = {
   email: string;
@@ -51,7 +52,7 @@ export default function LoginForm() {
     }));
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setAuthError("");
 
@@ -84,11 +85,18 @@ export default function LoginForm() {
       return;
     }
 
-    const registeredUsersRaw = typeof window !== "undefined" ? window.localStorage.getItem("atlasRegisteredUsers") : null;
-    const registeredUsers = registeredUsersRaw ? JSON.parse(registeredUsersRaw) : [];
-    const matchingRegisteredUser = Array.isArray(registeredUsers)
-      ? registeredUsers.find((user: Record<string, string>) => user.email === normalizedEmail && user.password === values.password)
-      : null;
+    let matchingRegisteredUser = null;
+    if (isSupabaseConfigured && supabase) {
+      matchingRegisteredUser = await fetchRegisteredNewUserByEmailAndPassword(normalizedEmail, values.password);
+    }
+
+    if (!matchingRegisteredUser) {
+      const registeredUsersRaw = typeof window !== "undefined" ? window.localStorage.getItem("atlasRegisteredUsers") : null;
+      const registeredUsers = registeredUsersRaw ? JSON.parse(registeredUsersRaw) : [];
+      matchingRegisteredUser = Array.isArray(registeredUsers)
+        ? registeredUsers.find((user: Record<string, string>) => user.email === normalizedEmail && user.password === values.password)
+        : null;
+    }
 
     if (matchingRegisteredUser) {
       if (typeof window !== "undefined") {

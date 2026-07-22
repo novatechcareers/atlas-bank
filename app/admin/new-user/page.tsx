@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import AdminNewUserFundAccount from "@/components/admin/AdminNewUserFundAccount";
-import { getRegisteredNewUsers, loadNewUserTransfers, updateNewUserTransferStatus, type NewUserTransfer } from "@/lib/newUserData";
+import { fetchRegisteredNewUsers, loadNewUserTransfers, updateNewUserTransferStatus, type NewUserTransfer } from "@/lib/newUserData";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
 
 export default function AdminNewUserFundingPage() {
@@ -22,7 +22,7 @@ export default function AdminNewUserFundingPage() {
     }
 
     const loadData = async () => {
-      setRegisteredUsers(getRegisteredNewUsers());
+      setRegisteredUsers(await fetchRegisteredNewUsers());
       setTransactions(await loadNewUserTransfers());
     };
 
