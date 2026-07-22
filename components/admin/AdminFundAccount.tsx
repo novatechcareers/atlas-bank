@@ -21,9 +21,10 @@ export default function AdminFundAccount() {
       amount: parsedAmount,
       description: description.trim() || "Admin funding",
       reference: reference.trim() || undefined,
+      target: "demo",
     });
 
-    setMessage(`Funding recorded successfully. Reference: ${created.reference}`);
+    setMessage(`Funding recorded for demo account. Reference: ${created.reference}`);
     setAmount("1000");
     setDescription("Admin funding");
     setReference("");
@@ -47,6 +48,13 @@ export default function AdminFundAccount() {
         <div className="field-group">
           <label htmlFor="fund-description">Description</label>
           <input id="fund-description" type="text" value={description} onChange={(event) => setDescription(event.target.value)} />
+        </div>
+
+        <div className="field-group">
+          <label htmlFor="fund-target">Target account</label>
+          <select id="fund-target" value="demo" disabled>
+            <option value="demo">Demo customer</option>
+          </select>
         </div>
 
         <div className="field-group">

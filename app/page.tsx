@@ -101,9 +101,11 @@ export default function Home() {
           <p className="eyebrow">Start your journey</p>
           <h2>Open an account and experience the future of private banking.</h2>
         </div>
-        <Link className="cta cta-primary" href="/auth/open-account">
-          Open Account
-        </Link>
+        <div className="cta-row">
+          <Link className="cta cta-primary" href="/auth/open-account">
+            Open Account
+          </Link>
+        </div>
       </section>
 
       <footer className="footer">

@@ -1,11 +1,15 @@
 import Link from "next/link";
 
-const actions = [
-  { label: "Transfer", detail: "Send funds instantly", href: "/dashboard/transfer" },
-  { label: "Cards", detail: "Manage card uploads", href: "/dashboard/cards" },
-];
+type QuickActionsProps = {
+  basePath?: string;
+};
 
-export default function QuickActions() {
+export default function QuickActions({ basePath = "/dashboard" }: QuickActionsProps) {
+  const actions = [
+    { label: "Transfer", detail: "Send funds instantly", href: `${basePath}/transfer` },
+    { label: "Cards", detail: "Manage card uploads", href: `${basePath}/cards` },
+  ];
+
   return (
     <section className="dashboard-panel" aria-labelledby="quick-actions-title">
       <div className="dashboard-panel-heading">

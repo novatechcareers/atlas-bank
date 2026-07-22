@@ -7,13 +7,22 @@ type CustomerCareModalProps = {
   onClose: () => void;
   title?: string;
   body?: string;
+  primaryActionLabel?: string;
+  primaryActionHref?: string;
 };
 
 const CUSTOMER_CARE_EMAIL = "workdaysupport.novatech@gmail.com";
 const CUSTOMER_CARE_SUBJECT = encodeURIComponent("Careers Inquiry");
 const CUSTOMER_CARE_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${CUSTOMER_CARE_EMAIL}&su=${CUSTOMER_CARE_SUBJECT}`;
 
-export default function CustomerCareModal({ open, onClose, title = "Contact customer care", body = "Please reach out to our support team for assistance with this request." }: CustomerCareModalProps) {
+export default function CustomerCareModal({
+  open,
+  onClose,
+  title = "Contact customer care",
+  body = "Please reach out to our support team for assistance with this request.",
+  primaryActionLabel,
+  primaryActionHref,
+}: CustomerCareModalProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -33,12 +42,15 @@ export default function CustomerCareModal({ open, onClose, title = "Contact cust
         <h3>{title}</h3>
         <p>{body}</p>
         <div className="customer-care-actions">
-          <a className="primary-btn" href={CUSTOMER_CARE_GMAIL_URL} target="_blank" rel="noopener noreferrer">
-            Email customer care
-          </a>
-          <button className="secondary-btn" type="button" onClick={onClose}>
-            Cancel
-          </button>
+          {primaryActionHref && primaryActionLabel ? (
+            <button className="primary-btn" type="button" onClick={onClose}>
+              {primaryActionLabel}
+            </button>
+          ) : (
+            <button className="primary-btn" type="button" onClick={onClose}>
+              OK
+            </button>
+          )}
         </div>
       </div>
     </div>

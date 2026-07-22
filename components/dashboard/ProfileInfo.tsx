@@ -1,9 +1,22 @@
-import { useState } from "react";
-import CustomerCareModal from "@/components/dashboard/CustomerCareModal";
+type ProfileInfoProps = {
+  accountNumber?: string;
+  iban?: string;
+  swift?: string;
+  customerSince?: string;
+  accountType?: string;
+  branch?: string;
+  onEditProfile?: () => void;
+};
 
-export default function ProfileInfo() {
-  const [showContactModal, setShowContactModal] = useState(false);
-
+export default function ProfileInfo({
+  accountNumber = "4589201834",
+  iban = "GB89ABCD1234567890",
+  swift = "ATLSUS33",
+  customerSince = "March 2019",
+  accountType = "Premier Checking",
+  branch = "Atlas Manhattan",
+  onEditProfile,
+}: ProfileInfoProps) {
   return (
     <section className="profile-info-panel">
       <div className="profile-info-group">
@@ -14,27 +27,27 @@ export default function ProfileInfo() {
         <div className="info-grid">
           <div>
             <span>Account Number</span>
-            <strong>4589201834</strong>
+            <strong>{accountNumber}</strong>
           </div>
           <div>
             <span>IBAN</span>
-            <strong>GB89ABCD1234567890</strong>
+            <strong>{iban}</strong>
           </div>
           <div>
             <span>SWIFT</span>
-            <strong>ATLSUS33</strong>
+            <strong>{swift}</strong>
           </div>
           <div>
             <span>Customer Since</span>
-            <strong>March 2019</strong>
+            <strong>{customerSince}</strong>
           </div>
           <div>
             <span>Account Type</span>
-            <strong>Premier Checking</strong>
+            <strong>{accountType}</strong>
           </div>
           <div>
             <span>Branch</span>
-            <strong>Atlas Manhattan</strong>
+            <strong>{branch}</strong>
           </div>
         </div>
       </div>
@@ -60,16 +73,9 @@ export default function ProfileInfo() {
         </div>
       </div>
 
-      <button className="secondary-btn" type="button" onClick={() => setShowContactModal(true)}>
+      <button className="secondary-btn" type="button" onClick={onEditProfile}>
         Edit Profile
       </button>
-
-      <CustomerCareModal
-        open={showContactModal}
-        onClose={() => setShowContactModal(false)}
-        title="Profile update request"
-        body="Personal information is protected. To update your profile details, please contact customer care."
-      />
     </section>
   );
 }

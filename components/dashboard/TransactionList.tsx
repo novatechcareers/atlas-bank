@@ -1,25 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadTransferRequestsFromSupabase, TransferRequest } from "@/lib/adminData";
+import { DEMO_CUSTOMER_EMAIL, loadTransferRequestsFromSupabase, TransferRequest } from "@/lib/adminData";
+import { loadNewUserTransfers } from "@/lib/newUserData";
 
-export default function TransactionList() {
+type TransactionListProps = {
+  variant?: "demo" | "new-user";
+  basePath?: string;
+};
+
+export default function TransactionList({ variant = "demo", basePath = "/dashboard" }: TransactionListProps) {
   const [transactions, setTransactions] = useState<TransferRequest[]>([]);
 
   useEffect(() => {
     const loadTransactions = async () => {
+      if (variant === "new-user") {
+        const stored = await loadNewUserTransfers();
+        setTransactions(stored.slice(0, 4) as unknown as TransferRequest[]);
+        return;
+      }
       const stored = await loadTransferRequestsFromSupabase(true);
-      setTransactions(stored.slice(0, 4));
+      const demoTransfers = stored.filter((transfer) => transfer.customerEmail.toLowerCase() === DEMO_CUSTOMER_EMAIL.toLowerCase());
+      setTransactions(demoTransfers.slice(0, 4));
     };
 
     loadTransactions();
-  }, []);
+
+    if (variant === "new-user") {
+      const handleTransfersUpdated = () => {
+        void loadTransactions();
+      };
+
+      window.addEventListener("atlas-new-user-transfers-updated", handleTransfersUpdated);
+      window.addEventListener("storage", handleTransfersUpdated);
+
+      return () => {
+        window.removeEventListener("atlas-new-user-transfers-updated", handleTransfersUpdated);
+        window.removeEventListener("storage", handleTransfersUpdated);
+      };
+    }
+  }, [variant]);
 
   return (
     <section className="dashboard-panel" aria-labelledby="transactions-title">
       <div className="dashboard-panel-heading">
         <h3 id="transactions-title">Recent transfers</h3>
-        <a href="/dashboard/transactions">View all</a>
+        <a href={`${basePath}/transactions`}>View all</a>
       </div>
 
       <ul className="transaction-list">

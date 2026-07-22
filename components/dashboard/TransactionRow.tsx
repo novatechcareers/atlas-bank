@@ -1,44 +1,55 @@
-import Link from "next/link";
-import { TransferRequest } from "@/lib/adminData";
+﻿import Link from "next/link";
 
-type TransactionRowProps = TransferRequest;
+type TransactionRowProps = {
+  date: string;
+  description: string;
+  category: string;
+  recipient: string;
+  amount: string;
+  status: "Completed" | "Pending" | "Failed";
+  reference: string;
+  basePath?: string;
+};
 
 function statusBadgeClass(status: string) {
   switch (status) {
-    case "Approved":
+    case "Completed":
       return "status-badge completed";
     case "Pending":
       return "status-badge pending";
-    case "Declined":
-      return "status-badge declined";
+    case "Failed":
+      return "status-badge failed";
     default:
       return "status-badge";
   }
 }
 
-export default function TransactionRow({ submissionTime, description, recipient, amount, status, reference, direction = "outbound", bank }: TransactionRowProps) {
-  const formattedAmount = `${direction === "incoming" ? "+" : "-"}$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const categoryLabel = direction === "incoming" ? "Incoming transfer" : "Outgoing transfer";
-
+export default function TransactionRow({ date, description, category, recipient, amount, status, reference, basePath }: TransactionRowProps) {
   return (
     <tr className="transaction-row">
-      <td data-label="Date">{submissionTime}</td>
+      <td data-label="Date">{date}</td>
       <td data-label="Description">
         <div className="transaction-description">
           <strong>{description}</strong>
-          <span>{categoryLabel} • {bank}</span>
+          <span>{category}</span>
         </div>
       </td>
       <td data-label="Recipient">{recipient}</td>
-      <td data-label="Amount">{formattedAmount}</td>
+      <td data-label="Amount">{amount}</td>
       <td data-label="Status">
         <span className={statusBadgeClass(status)}>{status}</span>
       </td>
       <td data-label="Reference">{reference}</td>
       <td data-label="Action">
-        <Link className="receipt-btn" href={`/dashboard/transactions/${reference}`}>
-          View Receipt
-        </Link>
+        {basePath ? (
+          <Link href={`${basePath}/transactions/${reference}`} className="receipt-btn">
+            View Receipt
+          </Link>
+        ) : (
+          <button className="receipt-btn receipt-btn--disabled" type="button" disabled>
+            View Receipt
+          </button>
+        )}
       </td>
     </tr>
   );

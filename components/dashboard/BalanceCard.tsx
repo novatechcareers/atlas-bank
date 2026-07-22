@@ -24,6 +24,7 @@ export default function BalanceCard({ title, amount, icon, accent, accountNumber
         <strong>{amount}</strong>
         <span>Available now</span>
       </div>
+      <div aria-hidden className="balance-watermark" />
     </article>
   );
 }
