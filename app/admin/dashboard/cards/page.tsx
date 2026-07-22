@@ -1,21 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopbar from "@/components/admin/AdminTopbar";
 import { loadLinkedCardsFromSupabase, LinkedCardItem } from "@/lib/adminData";
+import { isAdminAuthenticated } from "@/lib/adminAuth";
 
 export default function AdminLinkedCardsPage() {
+  const router = useRouter();
   const [cards, setCards] = useState<LinkedCardItem[]>([]);
 
   useEffect(() => {
+    if (!isAdminAuthenticated()) {
+      router.replace("/admin/login");
+      return;
+    }
+
     const loadCards = async () => {
       const records = await loadLinkedCardsFromSupabase(true);
       setCards(records);
     };
 
     loadCards();
-  }, []);
+  }, [router]);
 
   return (
     <main className="dashboard-page admin-dashboard-page">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { validateAdminCredentials, setAdminAuthenticated } from "@/lib/adminAuth";
+import { validateAdminCredentials, setAdminAuthenticated, isAdminAuthenticated } from "@/lib/adminAuth";
 
 export default function AdminLoginPage() {
   const [adminId, setAdminId] = useState("");
@@ -11,11 +11,17 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  useEffect(() => {
+    if (isAdminAuthenticated()) {
+      router.replace("/admin/dashboard");
+    }
+  }, [router]);
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (validateAdminCredentials(adminId.trim(), password)) {
-      setAdminAuthenticated(remember);
-      router.push("/admin/dashboard");
+      setAdminAuthenticated(true);
+      router.replace("/admin/dashboard");
       return;
     }
 
@@ -29,6 +35,8 @@ export default function AdminLoginPage() {
           <strong className="auth-logo">ATLAS BANK</strong>
           <h1>Administrator Portal</h1>
           <p>Authorized Personnel Only</p>
+          <p className="field-hint">This is the separate admin control panel. It is not a customer account and it manages the same banking records used by the demo and new-user experiences.</p>
+          <p className="field-hint">Use Admin ID: admin • Password: Atlas@2026</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>

@@ -399,6 +399,38 @@ a {
   font-size: 1.1rem;
 }
 
+/* Balance watermark styling */
+.balance-card {
+  position: relative;
+  overflow: visible;
+}
+.balance-watermark {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 220px;
+  height: 220px;
+  background-image: url('/logos/atlas-mark-gold-new.svg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: contain;
+  opacity: 0.1;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 40px rgba(11,31,58,0.06));
+  transform: translate(20px, -8px);
+}
+
+@media (max-width: 720px) {
+  .balance-watermark {
+    width: 140px;
+    height: 140px;
+    top: 6px;
+    right: 10px;
+    opacity: 0.08;
+    transform: translate(8px, -6px);
+  }
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1075,6 +1107,7 @@ a {
 }
 
 .hero-balance-panel {
+  position: relative;
   flex: 0 1 320px;
   min-width: 280px;
   display: flex;
@@ -1084,6 +1117,42 @@ a {
   padding: 1rem;
   border-radius: 1.35rem;
   background: rgba(255, 255, 255, 0.08);
+  overflow: visible;
+}
+
+.hero-balance-panel::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  width: 220px;
+  height: 220px;
+  background-image: url('/logos/atlas-mark-gold-new.svg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: contain;
+  opacity: 0.1;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  transform: translate(24px, -8px);
+}
+
+@media (max-width: 720px) {
+  .hero-balance-panel::before {
+    width: 140px;
+    height: 140px;
+    top: -6px;
+    right: -8px;
+    opacity: 0.08;
+    transform: translate(8px, -6px);
+  }
+}
+
+/* Ensure content sits above the watermark */
+.hero-balance-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-balance-header {
@@ -1600,6 +1669,40 @@ a {
   box-shadow: 0 14px 24px rgba(15, 23, 42, 0.16);
 }
 
+.profile-avatar-upload {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.avatar-upload-hint {
+  color: var(--secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 0.35rem;
+}
+
+.profile-detail-block input {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.8rem;
+  padding: 0.8rem 0.9rem;
+  font: inherit;
+  color: var(--primary);
+  background: var(--surface);
+}
+
 .profile-card-copy {
   display: flex;
   flex-direction: column;
@@ -1627,6 +1730,32 @@ a {
   width: fit-content;
   border: 1px solid rgba(28, 70, 127, 0.16);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.profile-notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.1rem;
+  margin-bottom: 1rem;
+  border-radius: 1rem;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  color: var(--primary);
+}
+
+.profile-notice-banner span {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+}
+
+.profile-notice-banner p {
+  margin: 0;
+  flex: 1;
+  color: var(--muted);
 }
 
 .badge-icon {

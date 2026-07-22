@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createTransferRequest, getAvailableBalance } from "@/lib/adminData";
+import { createTransferRequest, DEMO_CUSTOMER_EMAIL, getAvailableBalance } from "@/lib/adminData";
 import TransferSummary from "@/components/dashboard/TransferSummary";
 
 const banks = [
@@ -20,6 +20,15 @@ const banks = [
 
 const transferTypes = ["Internal Transfer", "Domestic Transfer", "International Wire"];
 
+function sanitizeAmountInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const parts = cleaned.split(".");
+  if (parts.length > 2) {
+    return `${parts[0]}.${parts.slice(1).join("")}`;
+  }
+  return cleaned;
+}
+
 export default function TransferForm() {
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -29,6 +38,7 @@ export default function TransferForm() {
   const [type, setType] = useState("Domestic Transfer");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
   const router = useRouter();
 
   const parsedAmount = Number.parseFloat(amount.replace(/[^\d.]/g, "")) || 0;
@@ -37,7 +47,9 @@ export default function TransferForm() {
   const [currentBalance, setCurrentBalance] = useState<number>(0);
   const remainingBalance = currentBalance - totalDebit;
   const isAccountNumberValid = /^\d{10,12}$/.test(accountNumber);
-  const isFormValid = Boolean(amount.trim()) && Boolean(recipient.trim()) && Boolean(bank) && isAccountNumberValid && parsedAmount > 0;
+  const hasInsufficientBalance = parsedAmount > 0 && currentBalance < parsedAmount;
+  const isFormValid = Boolean(amount.trim()) && Boolean(recipient.trim()) && Boolean(bank) && isAccountNumberValid && parsedAmount > 0 && !hasInsufficientBalance;
+  const validationMessage = hasInsufficientBalance ? "You do not have enough available balance to send this transfer." : parsedAmount <= 0 ? "Enter an amount greater than $0.00." : "";
   const maskedAccountNumber = accountNumber
     ? accountNumber.replace(/\d(?=\d{4})/g, "X")
     : "XXXXX.....";
@@ -62,24 +74,33 @@ export default function TransferForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isFormValid) return;
+    if (!isFormValid) {
+      setSubmissionError(validationMessage || "Please complete all required transfer details before submitting.");
+      return;
+    }
 
+    setSubmissionError("");
     setIsSubmitting(true);
 
-    await createTransferRequest({
-      customerName: "Daniel Morgan",
-      customerEmail: "daniel.morgan@atlasbank.com",
-      recipient,
-      bank,
-      accountNumber,
-      swift: routing,
-      amount: parsedAmount,
-      fee,
-      description: description || "Funds transfer",
-      direction: "outbound",
-    });
+    try {
+      await createTransferRequest({
+        customerName: "Daniel Morgan",
+        customerEmail: DEMO_CUSTOMER_EMAIL,
+        recipient,
+        bank,
+        accountNumber,
+        swift: routing,
+        amount: parsedAmount,
+        fee,
+        description: description || "Funds transfer",
+        direction: "outbound",
+      });
 
-    router.push("/dashboard/transactions");
+      router.push("/dashboard/transactions");
+    } catch {
+      setSubmissionError("We could not submit this transfer. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -100,8 +121,9 @@ export default function TransferForm() {
               <input
                 id="amount"
                 type="text"
+                inputMode="decimal"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={(event) => setAmount(sanitizeAmountInput(event.target.value))}
               />
             </div>
           </div>
@@ -134,9 +156,10 @@ export default function TransferForm() {
               <input
                 id="accountNumber"
                 type="text"
+                inputMode="numeric"
                 value={accountNumber}
-                onChange={(event) => setAccountNumber(event.target.value)}
-                placeholder="XXXXX....."
+                onChange={(event) => setAccountNumber(event.target.value.replace(/\D/g, ""))}
+                maxLength={12}
               />
             </div>
           </div>
@@ -181,12 +204,15 @@ export default function TransferForm() {
             />
           </div>
 
+          {submissionError ? <p className="settings-note" style={{ color: "#b91c1c", marginBottom: "0.75rem" }}>{submissionError}</p> : null}
+          {validationMessage && !submissionError ? <p className="settings-note" style={{ color: "#b91c1c", marginBottom: "0.75rem" }}>{validationMessage}</p> : null}
+
           <div className="form-actions">
             <button className="secondary-btn" type="button" onClick={() => router.push("/dashboard")}> 
               Cancel
             </button>
             <button className="primary-btn" type="submit" disabled={!isFormValid || isSubmitting}>
-              {isSubmitting ? "Processing..." : isFormValid ? "Initiate Transfer" : "Continue"}
+              {isSubmitting ? "Processing..." : hasInsufficientBalance ? "Insufficient funds" : isFormValid ? "Initiate Transfer" : "Continue"}
             </button>
           </div>
         </form>

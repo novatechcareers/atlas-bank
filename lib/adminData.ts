@@ -1,8 +1,11 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { applyFundingToNewUserSession, createNewUserTransfer, getDefaultNewUserSession } from "@/lib/newUserData";
 
 export type TransferStatus = "Pending" | "Approved" | "Declined";
 
 export type TransferDirection = "outbound" | "incoming";
+
+export type AdminFundingTarget = "demo" | "new-user";
 
 export type TransferRequest = {
   reference: string;
@@ -265,12 +268,12 @@ export async function refreshBankDataFromSupabase(force = false) {
 
 export async function loadTransferRequestsFromSupabase(force = false) {
   const { transfers } = await refreshBankDataFromSupabase(force);
-  return transfers;
+  return transfers.filter((transfer) => transfer.customerEmail.toLowerCase() === DEMO_CUSTOMER_EMAIL.toLowerCase());
 }
 
 export async function loadReceiptsFromSupabase(force = false) {
   const { receipts } = await refreshBankDataFromSupabase(force);
-  return receipts;
+  return receipts.filter((receipt) => receipt.senderName.toLowerCase() === "daniel morgan");
 }
 
 export async function loadLinkedCardsFromSupabase(force = false) {
@@ -278,6 +281,7 @@ export async function loadLinkedCardsFromSupabase(force = false) {
   return cards;
 }
 
+export const DEMO_CUSTOMER_EMAIL = "daniel.morgan@atlasbank.com";
 const INITIAL_BALANCE = 89768.82;
 
 const ADMIN_FUNDING_PREFIX = "FND";
@@ -286,8 +290,14 @@ export function formatCurrency(amount: number) {
   return `$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export function getDemoTransferRequests() {
+  return getTransferRequests().filter(
+    (transfer) => transfer.customerEmail.toLowerCase() === DEMO_CUSTOMER_EMAIL,
+  );
+}
+
 export function getAvailableBalance() {
-  const transfers = getTransferRequests();
+  const transfers = getDemoTransferRequests();
   return transfers.reduce((balance, request) => {
     if (request.status !== "Approved") return balance;
     if (request.direction === "outbound") {
@@ -302,7 +312,7 @@ export function setAvailableBalance(amount: number) {
 }
 
 export function computeBalanceFromTransfers() {
-  const transfers = getTransferRequests();
+  const transfers = getDemoTransferRequests();
   return transfers.reduce((balance, request) => {
     if (request.status !== "Approved") return balance;
     if (request.direction === "outbound") {
@@ -423,15 +433,53 @@ export async function createTransferRequest(partial: Omit<TransferRequest, "refe
   return transfer;
 }
 
+export async function fundNewUserAccount(amount: number, targetEmail?: string, description?: string) {
+  const normalizedEmail = targetEmail?.trim().toLowerCase();
+  const fallbackSession = getDefaultNewUserSession();
+  const existingSession = typeof window !== "undefined" ? window.localStorage.getItem("atlasNewUserSession") : null;
+  const parsedSession = existingSession ? JSON.parse(existingSession) : null;
+  const nextSession = parsedSession ?? fallbackSession;
+
+  const transfer = await createNewUserTransfer({
+    customerName: nextSession.customerName ?? fallbackSession.customerName,
+    customerEmail: normalizedEmail || nextSession.customerEmail || fallbackSession.customerEmail,
+    recipient: "Atlas Bank Funding",
+    bank: "Atlas Bank",
+    accountNumber: nextSession.accountNumber ?? fallbackSession.accountNumber,
+    swift: nextSession.swift ?? fallbackSession.swift,
+    amount: Number(amount.toFixed(2)),
+    fee: 0,
+    description: description?.trim() || "Admin funding",
+    direction: "incoming",
+    status: "Approved",
+    submissionTime: new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }),
+  });
+
+  return transfer;
+}
+
 export async function createFundedTransferRequest({
   amount,
   description,
   reference,
+  target = "demo",
+  targetEmail,
 }: {
   amount: number;
   description: string;
   reference?: string;
+  target?: AdminFundingTarget;
+  targetEmail?: string;
 }) {
+  if (target === "new-user") {
+    await fundNewUserAccount(amount, targetEmail?.trim(), description.trim() || "Admin funding");
+    return {
+      reference: reference?.trim() || `${ADMIN_FUNDING_PREFIX}-${createTransferReference()}`,
+      target,
+      amount: Number(amount.toFixed(2)),
+    };
+  }
+
   const transfer: TransferRequest = {
     reference: reference?.trim() || `${ADMIN_FUNDING_PREFIX}-${createTransferReference()}`,
     customerName: "Daniel Morgan",

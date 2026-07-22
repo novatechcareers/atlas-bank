@@ -6,7 +6,7 @@ import TopNavbar from "@/components/dashboard/TopNavbar";
 import StatementSummary from "@/components/dashboard/StatementSummary";
 import StatementTable from "@/components/dashboard/StatementTable";
 import CustomerCareModal from "@/components/dashboard/CustomerCareModal";
-import { formatCurrency, getAvailableBalance, getTransferRequests } from "@/lib/adminData";
+import { formatCurrency, getAvailableBalance, getDemoTransferRequests } from "@/lib/adminData";
 
 const statementRows = [
   { period: "July 2026", generated: "Jul 31", transactions: 146, status: "Available" },
@@ -27,7 +27,7 @@ export default function StatementsPage() {
   const [summaryValues, setSummaryValues] = useState(initialSummaryValues);
 
   useEffect(() => {
-    const transfers = getTransferRequests();
+    const transfers = getDemoTransferRequests();
     const credits = transfers.reduce((sum, item) => {
       if (item.status === "Approved" && item.direction === "incoming") return sum + item.amount;
       return sum;

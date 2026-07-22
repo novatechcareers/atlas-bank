@@ -1,38 +1,30 @@
 type PaginationProps = {
-  currentPage: number;
-  pageCount: number;
-  onPageChange: (page: number) => void;
+  currentPage?: number;
+  pageCount?: number;
+  onPageChange?: (page: number) => void;
 };
 
-export default function Pagination({ currentPage, pageCount, onPageChange }: PaginationProps) {
+export default function Pagination({ currentPage = 1, pageCount = 1, onPageChange }: PaginationProps) {
+  const pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1);
+
   return (
     <div className="pagination" aria-label="Pagination">
-      <button
-        className="pagination-btn"
-        type="button"
-        disabled={currentPage === 1}
-        onClick={() => onPageChange(currentPage - 1)}
-      >
+      <button className="pagination-btn" type="button" onClick={() => onPageChange?.(Math.max(1, currentPage - 1))}>
         Previous
       </button>
       <div className="pagination-pages">
-        {Array.from({ length: pageCount }, (_, index) => (
+        {pages.map((page) => (
           <button
-            key={index}
-            className={`pagination-page ${currentPage === index + 1 ? "active" : ""}`}
+            key={page}
+            className={`pagination-page ${page === currentPage ? "active" : ""}`.trim()}
             type="button"
-            onClick={() => onPageChange(index + 1)}
+            onClick={() => onPageChange?.(page)}
           >
-            {index + 1}
+            {page}
           </button>
         ))}
       </div>
-      <button
-        className="pagination-btn"
-        type="button"
-        disabled={currentPage === pageCount}
-        onClick={() => onPageChange(currentPage + 1)}
-      >
+      <button className="pagination-btn" type="button" onClick={() => onPageChange?.(Math.min(pageCount, currentPage + 1))}>
         Next
       </button>
     </div>

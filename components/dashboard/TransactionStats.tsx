@@ -1,17 +1,25 @@
 type TransactionStatsProps = {
-  incoming: string;
-  outgoing: string;
-  fees: string;
-  count: number;
+  variant?: "demo" | "new-user";
+  incoming?: string;
+  outgoing?: string;
+  fees?: string;
+  count?: number;
 };
 
-export default function TransactionStats({ incoming, outgoing, fees, count }: TransactionStatsProps) {
-  const stats = [
-    { label: "Incoming", value: incoming, tone: "positive" },
-    { label: "Outgoing", value: outgoing, tone: "negative" },
-    { label: "Fees", value: fees, tone: "neutral" },
-    { label: "Transactions", value: `${count}`, tone: "neutral" },
-  ];
+export default function TransactionStats({ variant = "demo", incoming, outgoing, fees, count }: TransactionStatsProps) {
+  const stats = variant === "new-user"
+    ? [
+        { label: "Incoming", value: incoming ?? "$0.00", tone: "positive" },
+        { label: "Outgoing", value: outgoing ?? "$0.00", tone: "negative" },
+        { label: "Fees", value: fees ?? "$0.00", tone: "neutral" },
+        { label: "Transactions", value: String(count ?? 0), tone: "neutral" },
+      ]
+    : [
+        { label: "Incoming", value: incoming ?? "+$5,840", tone: "positive" },
+        { label: "Outgoing", value: outgoing ?? "-$3,120", tone: "negative" },
+        { label: "Fees", value: fees ?? "$42", tone: "neutral" },
+        { label: "Transactions", value: String(count ?? 126), tone: "neutral" },
+      ];
 
   return (
     <section className="stats-strip" aria-label="Transaction statistics">

@@ -1,23 +1,39 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import PasswordStrength from "@/components/auth/PasswordStrength";
+import { getDefaultNewUserSession, saveNewUserCustomerToSupabase, saveNewUserSession } from "@/lib/newUserData";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type FormValues = {
   fullName: string;
   email: string;
-  phone: string;
+  countryCode: string;
+  phoneNumber: string;
   password: string;
   confirmPassword: string;
   agreedToTerms: boolean;
 };
 
+const countryOptions = [
+  { label: "United States", code: "1" },
+  { label: "United Kingdom", code: "44" },
+  { label: "Canada", code: "1" },
+  { label: "Australia", code: "61" },
+  { label: "Germany", code: "49" },
+  { label: "France", code: "33" },
+  { label: "Nigeria", code: "234" },
+  { label: "India", code: "91" },
+  { label: "South Africa", code: "27" },
+];
+
 const initialValues: FormValues = {
   fullName: "",
   email: "",
-  phone: "",
+  countryCode: "",
+  phoneNumber: "",
   password: "",
   confirmPassword: "",
   agreedToTerms: false,
@@ -28,14 +44,20 @@ function validate(values: FormValues) {
 
   if (!values.fullName.trim()) {
     errors.fullName = "Full name is required.";
+  } else if (!/^[A-Za-z\s.'-]+$/.test(values.fullName.trim())) {
+    errors.fullName = "Full name can only contain letters and basic punctuation.";
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
     errors.email = "Please enter a valid email address.";
   }
 
-  if (!/^\+?[0-9\s-]{7,15}$/.test(values.phone)) {
-    errors.phone = "Please enter a valid phone number.";
+  if (!/^\d{1,4}$/.test(values.countryCode)) {
+    errors.countryCode = "Enter a valid country code.";
+  }
+
+  if (!/^\d{7,15}$/.test(values.phoneNumber)) {
+    errors.phoneNumber = "Enter a valid phone number.";
   }
 
   if (values.password.length < 8) {
@@ -62,6 +84,7 @@ function validate(values: FormValues) {
 }
 
 export default function RegisterForm() {
+  const router = useRouter();
   const [values, setValues] = useState<FormValues>(initialValues);
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [showPassword, setShowPassword] = useState(false);
@@ -75,9 +98,35 @@ export default function RegisterForm() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const { name, value, type, checked } = event.target;
+
+    if (name === "fullName") {
+      const sanitized = value.replace(/[^A-Za-z\s.'-]/g, "");
+      setValues((current) => ({
+        ...current,
+        fullName: sanitized,
+      }));
+      return;
+    }
+
+    if (name === "phoneNumber") {
+      const sanitized = value.replace(/\D/g, "");
+      setValues((current) => ({
+        ...current,
+        phoneNumber: sanitized,
+      }));
+      return;
+    }
+
     setValues((current) => ({
       ...current,
       [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleCountryCodeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setValues((current) => ({
+      ...current,
+      countryCode: event.target.value.replace(/\D/g, ""),
     }));
   };
 
@@ -93,31 +142,63 @@ export default function RegisterForm() {
     setIsSubmitting(true);
     setSubmitMessage(null);
 
-    if (!isSupabaseConfigured || !supabase) {
-      setSubmitMessage("Add your Supabase URL and anon key to .env.local to save this user.");
-      setIsSubmitting(false);
-      return;
+    const normalizedEmail = values.email.toLowerCase().trim();
+    const normalizedName = values.fullName.trim();
+    const normalizedPhone = `+${values.countryCode.trim()} ${values.phoneNumber.trim()}`.trim();
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await saveNewUserCustomerToSupabase({
+          fullName: normalizedName,
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown Supabase error";
+        setSubmitMessage(`Unable to save to Supabase: ${errorMessage}`);
+        setIsSubmitting(false);
+        return;
+      }
     }
 
-    const { error } = await supabase.from("customers").insert([
-      {
-        full_name: values.fullName.trim(),
-        email: values.email.toLowerCase().trim(),
-        phone: values.phone.trim(),
-        created_at: new Date().toISOString(),
-        status: "pending",
-      },
-    ]);
+    const registeredUsersRaw = typeof window !== "undefined" ? window.localStorage.getItem("atlasRegisteredUsers") : null;
+    const existingRegisteredUsers = registeredUsersRaw ? JSON.parse(registeredUsersRaw) : [];
+    const nextRegisteredUsers = Array.isArray(existingRegisteredUsers)
+      ? existingRegisteredUsers.filter((user: Record<string, string>) => user.email !== normalizedEmail)
+      : [];
 
-    if (error) {
-      setSubmitMessage(`Unable to save to Supabase: ${error.message}`);
-      setIsSubmitting(false);
-      return;
+    nextRegisteredUsers.push({
+      fullName: normalizedName,
+      email: normalizedEmail,
+      phone: normalizedPhone,
+      password: values.password,
+      createdAt: new Date().toISOString(),
+    });
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("atlasRegisteredUsers", JSON.stringify(nextRegisteredUsers));
+      window.localStorage.setItem("isLoggedIn", "true");
+      window.localStorage.setItem("currentUser", normalizedEmail);
     }
 
-    setSubmitMessage("Account details saved to Supabase successfully.");
+    saveNewUserSession({
+      ...getDefaultNewUserSession(),
+      customerName: normalizedName,
+      customerEmail: normalizedEmail,
+      phone: normalizedPhone,
+      profileCompleted: false,
+      accountType: "Atlas New Customer",
+      availableBalance: "$0.00",
+      status: "Active",
+      customerSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    });
+
+    setSubmitMessage("Account created successfully. Redirecting you to your new account...");
     setIsSubmitting(false);
     setValues(initialValues);
+    router.push("/new-user/dashboard");
   };
 
   return (
@@ -130,7 +211,6 @@ export default function RegisterForm() {
           type="text"
           value={values.fullName}
           onChange={handleChange}
-          placeholder="Jordan Alvarez"
         />
         {errors.fullName ? <p className="field-error">{errors.fullName}</p> : null}
       </div>
@@ -143,22 +223,38 @@ export default function RegisterForm() {
           type="email"
           value={values.email}
           onChange={handleChange}
-          placeholder="you@example.com"
         />
         {errors.email ? <p className="field-error">{errors.email}</p> : null}
       </div>
 
       <div className="auth-field-group">
-        <label htmlFor="phone">Phone Number</label>
-        <input
-          id="phone"
-          name="phone"
-          type="tel"
-          value={values.phone}
-          onChange={handleChange}
-          placeholder="+1 555 000 1234"
-        />
-        {errors.phone ? <p className="field-error">{errors.phone}</p> : null}
+        <label htmlFor="countryCode">Phone Number</label>
+        <div className="auth-field-with-action" style={{ gap: "0.75rem" }}>
+          <select
+            id="countryCode"
+            name="countryCode"
+            value={values.countryCode ?? ""}
+            onChange={handleCountryCodeChange}
+            style={{ maxWidth: "220px" }}
+          >
+            <option value="">Select country</option>
+            {countryOptions.map((country) => (
+              <option key={country.code + country.label} value={country.code}>
+                {country.label} (+{country.code})
+              </option>
+            ))}
+          </select>
+          <input
+            id="phoneNumber"
+            name="phoneNumber"
+            type="text"
+            inputMode="numeric"
+            value={values.phoneNumber ?? ""}
+            onChange={handleChange}
+          />
+        </div>
+        {errors.countryCode ? <p className="field-error">{errors.countryCode}</p> : null}
+        {errors.phoneNumber ? <p className="field-error">{errors.phoneNumber}</p> : null}
       </div>
 
       <div className="auth-field-group">
@@ -170,7 +266,6 @@ export default function RegisterForm() {
             type={showPassword ? "text" : "password"}
             value={values.password}
             onChange={handleChange}
-            placeholder="Create a secure password"
           />
           <button
             className="auth-inline-toggle"
@@ -194,7 +289,6 @@ export default function RegisterForm() {
             type={showConfirmPassword ? "text" : "password"}
             value={values.confirmPassword}
             onChange={handleChange}
-            placeholder="Re-enter your password"
           />
           <button
             className="auth-inline-toggle"

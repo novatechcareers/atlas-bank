@@ -8,19 +8,26 @@ type MenuItem = {
   href: string;
 };
 
-const menuItems: MenuItem[] = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Transfer Money", href: "/dashboard/transfer" },
-  { label: "Transactions", href: "/dashboard/transactions" },
-  { label: "Cards", href: "/dashboard/cards" },
-  { label: "Statements", href: "/dashboard/statements" },
-  { label: "Profile", href: "/dashboard/profile" },
-  { label: "Settings", href: "/dashboard/settings" },
-  { label: "Logout", href: "/auth/login" },
-];
+type SidebarProps = {
+  basePath?: string;
+};
 
-export default function Sidebar() {
+function buildMenuItems(basePath: string): MenuItem[] {
+  return [
+    { label: "Dashboard", href: `${basePath}` },
+    { label: "Transfer Money", href: `${basePath}/transfer` },
+    { label: "Transactions", href: `${basePath}/transactions` },
+    { label: "Cards", href: `${basePath}/cards` },
+    { label: "Statements", href: `${basePath}/statements` },
+    { label: "Profile", href: `${basePath}/profile` },
+    { label: "Settings", href: `${basePath}/settings` },
+    { label: "Logout", href: "/auth/login" },
+  ];
+}
+
+export default function Sidebar({ basePath = "/dashboard" }: SidebarProps) {
   const [open, setOpen] = useState(false);
+  const menuItems = buildMenuItems(basePath);
 
   return (
     <>

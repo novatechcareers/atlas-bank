@@ -10,6 +10,7 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { label: "Dashboard", href: "/admin/dashboard" },
+  { label: "New-user funding", href: "/admin/new-user" },
   { label: "Transfer Requests ⭐", href: "/admin/dashboard/transfers" },
   { label: "Linked Cards ⭐", href: "/admin/dashboard/cards" },
   { label: "Customers", href: "/admin/dashboard/customers" },

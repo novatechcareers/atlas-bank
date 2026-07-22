@@ -7,6 +7,7 @@ export default function LoginPage() {
       title="Welcome Back"
       description="Sign in to continue managing your Atlas Bank account securely."
     >
+      
       <LoginForm />
     </AuthLayout>
   );

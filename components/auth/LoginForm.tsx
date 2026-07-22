@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import ContactAdminModal from "@/components/auth/ContactAdminModal";
-import { formatCurrency, getAvailableBalance } from "@/lib/adminData";
+import { DEMO_CUSTOMER_EMAIL, formatCurrency, getAvailableBalance } from "@/lib/adminData";
+import { getDefaultNewUserSession, saveNewUserSession } from "@/lib/newUserData";
 
 type FormValues = {
   email: string;
@@ -40,7 +40,6 @@ export default function LoginForm() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [authError, setAuthError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showContactModal, setShowContactModal] = useState(false);
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -63,13 +62,16 @@ export default function LoginForm() {
       return;
     }
 
-    const validEmail = "daniel.morgan@atlasbank.com";
+    const validEmail = DEMO_CUSTOMER_EMAIL;
     const validPassword = "Morgan@517!";
+
+    const normalizedEmail = values.email.toLowerCase().trim();
 
     if (values.email === validEmail && values.password === validPassword) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("isLoggedIn", "true");
         window.localStorage.setItem("currentUser", validEmail);
+        window.localStorage.setItem("customerEmail", DEMO_CUSTOMER_EMAIL);
         window.localStorage.setItem("customerName", "Daniel Morgan");
         window.localStorage.setItem("accountNumber", "4589201834");
         window.localStorage.setItem("customerId", "ATB-102938");
@@ -79,6 +81,34 @@ export default function LoginForm() {
       }
 
       router.push("/dashboard");
+      return;
+    }
+
+    const registeredUsersRaw = typeof window !== "undefined" ? window.localStorage.getItem("atlasRegisteredUsers") : null;
+    const registeredUsers = registeredUsersRaw ? JSON.parse(registeredUsersRaw) : [];
+    const matchingRegisteredUser = Array.isArray(registeredUsers)
+      ? registeredUsers.find((user: Record<string, string>) => user.email === normalizedEmail && user.password === values.password)
+      : null;
+
+    if (matchingRegisteredUser) {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("isLoggedIn", "true");
+        window.localStorage.setItem("currentUser", normalizedEmail);
+      }
+
+      saveNewUserSession({
+        ...getDefaultNewUserSession(),
+        customerName: matchingRegisteredUser.fullName || "New Customer",
+        customerEmail: normalizedEmail,
+        phone: matchingRegisteredUser.phone || "",
+        profileCompleted: false,
+        accountType: "Atlas New Customer",
+        availableBalance: "$0.00",
+        status: "Active",
+        customerSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+      });
+
+      router.push("/new-user/dashboard");
       return;
     }
 
@@ -146,10 +176,8 @@ export default function LoginForm() {
       {authError ? <p className="field-error">{authError}</p> : null}
 
       <p className="auth-switch">
-        Don&apos;t have an account? <button type="button" className="auth-link" onClick={() => setShowContactModal(true)}>Create Account</button>
+        Don&apos;t have an account? <Link className="auth-link" href="/auth/register">Create Account</Link>
       </p>
-
-      <ContactAdminModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
     </form>
   );
 }
