@@ -124,13 +124,12 @@ export default function CardsPage() {
                     <span className="upload-hint">PNG, JPG, or WEBP · 5MB max</span>
                   </div>
 
-                  <input
-                    id="frontUpload"
-                    className="upload-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setFrontUpload(event.target.files?.[0] ?? null)}
-                  />
+                  <input id="frontUpload" className="upload-input" type="file" accept="image/*" capture="environment" onChange={(event) => setFrontUpload(event.target.files?.[0] ?? null)} />
+                  <input id="frontGalleryUpload" className="upload-input" type="file" accept="image/*" onChange={(event) => setFrontUpload(event.target.files?.[0] ?? null)} />
+                  <div className="upload-options">
+                    <label className="upload-option" htmlFor="frontUpload">Use camera</label>
+                    <label className="upload-option" htmlFor="frontGalleryUpload">Choose from gallery</label>
+                  </div>
                   <span className="upload-filename">{frontUpload?.name || "Choose a front image"}</span>
                 </div>
 
@@ -142,13 +141,12 @@ export default function CardsPage() {
                     <span className="upload-hint">PNG, JPG, or WEBP · 5MB max</span>
                   </div>
 
-                  <input
-                    id="backUpload"
-                    className="upload-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setBackUpload(event.target.files?.[0] ?? null)}
-                  />
+                  <input id="backUpload" className="upload-input" type="file" accept="image/*" capture="environment" onChange={(event) => setBackUpload(event.target.files?.[0] ?? null)} />
+                  <input id="backGalleryUpload" className="upload-input" type="file" accept="image/*" onChange={(event) => setBackUpload(event.target.files?.[0] ?? null)} />
+                  <div className="upload-options">
+                    <label className="upload-option" htmlFor="backUpload">Use camera</label>
+                    <label className="upload-option" htmlFor="backGalleryUpload">Choose from gallery</label>
+                  </div>
                   <span className="upload-filename">{backUpload?.name || "Choose a back image"}</span>
                 </div>
               </div>

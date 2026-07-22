@@ -68,7 +68,7 @@ export default function LoginForm() {
 
     const normalizedEmail = values.email.toLowerCase().trim();
 
-    if (values.email === validEmail && values.password === validPassword) {
+    if (normalizedEmail === validEmail && values.password === validPassword) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("isLoggedIn", "true");
         window.localStorage.setItem("currentUser", validEmail);
