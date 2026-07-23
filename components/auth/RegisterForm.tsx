@@ -145,17 +145,6 @@ export default function RegisterForm() {
     const normalizedEmail = values.email.toLowerCase().trim();
     const normalizedName = values.fullName.trim();
     const normalizedPhone = `+${values.countryCode.trim()} ${values.phoneNumber.trim()}`.trim();
-    const newUserSession = {
-      ...getDefaultNewUserSession(),
-      customerName: normalizedName,
-      customerEmail: normalizedEmail,
-      phone: normalizedPhone,
-      profileCompleted: false,
-      accountType: "Atlas New Customer",
-      availableBalance: "$0.00",
-      status: "Active",
-      customerSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    };
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -164,7 +153,6 @@ export default function RegisterForm() {
           email: normalizedEmail,
           phone: normalizedPhone,
           password: values.password,
-          accountNumber: newUserSession.accountNumber,
           status: "pending",
           createdAt: new Date().toISOString(),
         });
@@ -196,7 +184,17 @@ export default function RegisterForm() {
       window.localStorage.setItem("currentUser", normalizedEmail);
     }
 
-    saveNewUserSession(newUserSession);
+    saveNewUserSession({
+      ...getDefaultNewUserSession(),
+      customerName: normalizedName,
+      customerEmail: normalizedEmail,
+      phone: normalizedPhone,
+      profileCompleted: false,
+      accountType: "Atlas New Customer",
+      availableBalance: "$0.00",
+      status: "Active",
+      customerSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    });
 
     setSubmitMessage("Account created successfully. Redirecting you to your new account...");
     setIsSubmitting(false);

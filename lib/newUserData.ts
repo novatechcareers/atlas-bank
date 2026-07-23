@@ -121,6 +121,10 @@ export function getNewUserSession(): NewUserAccount | null {
   }
 }
 
+export async function refreshNewUserSessionBalance() {
+  return getNewUserSession();
+}
+
 export function saveNewUserSession(session: NewUserAccount) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(NEW_USER_SESSION_KEY, JSON.stringify(session));
@@ -132,7 +136,6 @@ export async function saveNewUserCustomerToSupabase({
   email,
   phone,
   password,
-  accountNumber,
   status = "pending",
   createdAt = new Date().toISOString(),
 }: {
@@ -140,7 +143,6 @@ export async function saveNewUserCustomerToSupabase({
   email: string;
   phone: string;
   password?: string;
-  accountNumber?: string;
   status?: string;
   createdAt?: string;
 }) {
@@ -156,10 +158,6 @@ export async function saveNewUserCustomerToSupabase({
 
   if (password) {
     row.password = password;
-  }
-
-  if (accountNumber) {
-    row.account_number = accountNumber;
   }
 
   const { error } = await supabase.from("customers").upsert([row], { onConflict: "email" });
@@ -186,7 +184,10 @@ export async function saveNewUserCustomerToSupabase({
 export async function fetchRegisteredNewUserByEmail(email: string) {
   if (!isSupabaseConfigured || !supabase) return null;
 
-  const selectFields = "full_name, email, phone, password, account_number";
+  const session = getNewUserSession();
+  const sessionAccountNumber = session?.customerEmail?.toLowerCase() === email.toLowerCase() ? session.accountNumber : undefined;
+
+  const selectFields = "full_name, email, phone, password";
   const { data, error } = await supabase
     .from("customers")
     .select(selectFields)
@@ -207,7 +208,7 @@ export async function fetchRegisteredNewUserByEmail(email: string) {
           fullName: String(fallbackData.full_name ?? "New Customer"),
           phone: fallbackData.phone ? String(fallbackData.phone) : undefined,
           password: undefined,
-          accountNumber: undefined,
+          accountNumber: sessionAccountNumber,
         };
       }
     }
@@ -223,7 +224,7 @@ export async function fetchRegisteredNewUserByEmail(email: string) {
     fullName: String(data.full_name ?? "New Customer"),
     phone: data.phone ? String(data.phone) : undefined,
     password: data.password ? String(data.password) : undefined,
-    accountNumber: data.account_number ? String(data.account_number) : undefined,
+    accountNumber: sessionAccountNumber,
   };
 }
 
@@ -279,7 +280,7 @@ export function applyFundingToNewUserSession(amount: number, targetEmail?: strin
   return nextSession;
 }
 
-export function getRegisteredNewUsers(): Array<{ email: string; fullName: string; phone?: string; accountNumber?: string }> {
+export function getRegisteredNewUsers(): Array<{ email: string; fullName: string; phone?: string }> {
   if (typeof window === "undefined") return [];
 
   const registeredUsersRaw = window.localStorage.getItem("atlasRegisteredUsers");
@@ -291,15 +292,14 @@ export function getRegisteredNewUsers(): Array<{ email: string; fullName: string
     email: user.email || "",
     fullName: user.fullName || "New Customer",
     phone: user.phone || "",
-    accountNumber: user.accountNumber || "",
   })).filter((user) => user.email);
 }
 
-export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; fullName: string; phone?: string; accountNumber?: string }>> {
+export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; fullName: string; phone?: string }>> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
       .from("customers")
-      .select("full_name, email, phone, account_number")
+      .select("full_name, email, phone")
       .order("created_at", { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
@@ -308,7 +308,6 @@ export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; 
           email: String(item.email ?? ""),
           fullName: String(item.full_name ?? "New Customer"),
           phone: item.phone ? String(item.phone) : undefined,
-          accountNumber: item.account_number ? String(item.account_number) : undefined,
         }))
         .filter((user) => user.email);
     }
@@ -418,28 +417,6 @@ export async function loadNewUserTransfers(customerEmail?: string) {
   return uniqueTransfers.sort((a, b) => new Date(b.submissionTime).getTime() - new Date(a.submissionTime).getTime());
 }
 
-export function calculateNewUserBalance(transfers: NewUserTransfer[]) {
-  return transfers.reduce((balance, transfer) => {
-    if (transfer.status !== "Approved") return balance;
-    return transfer.direction === "incoming"
-      ? balance + transfer.amount
-      : balance - transfer.totalDebit;
-  }, 0);
-}
-
-export async function refreshNewUserSessionBalance() {
-  const currentSession = getNewUserSession();
-  if (!currentSession) return null;
-
-  const transfers = await loadNewUserTransfers(currentSession.customerEmail);
-  const nextSession = {
-    ...currentSession,
-    availableBalance: formatBalance(calculateNewUserBalance(transfers)),
-  };
-  saveNewUserSession(nextSession);
-  return nextSession;
-}
-
 export async function createNewUserTransfer(partial: Omit<NewUserTransfer, "reference" | "totalDebit" | "status" | "direction" | "submissionTime"> & {
   status?: NewUserTransferStatus;
   direction?: NewUserTransferDirection;
@@ -494,7 +471,6 @@ function formatBalance(value: number) {
 function syncNewUserSessionBalance(transfer: NewUserTransfer, previousTransfer?: NewUserTransfer | null) {
   const currentSession = getNewUserSession();
   if (!currentSession) return;
-  if (currentSession.customerEmail.toLowerCase() !== transfer.customerEmail.toLowerCase()) return;
 
   let nextBalance = parseBalance(currentSession.availableBalance);
 
@@ -562,14 +538,12 @@ export async function updateNewUserTransferStatus(reference: string, status: New
 }
 
 export async function createNewUserReceiptFromTransfer(request: NewUserTransfer) {
-  const currentSession = getNewUserSession();
-
   const receipt: NewUserReceipt = {
     reference: request.reference,
     status: request.status === "Approved" ? "SUCCESSFUL" : request.status === "Declined" ? "DECLINED" : "PENDING",
     date: request.approvalDate ?? request.submissionTime,
     senderName: request.customerName,
-    senderAccount: currentSession?.accountNumber ?? request.accountNumber,
+    senderAccount: request.accountNumber,
     recipientName: request.recipient,
     recipientBank: request.bank,
     recipientAccount: request.accountNumber,

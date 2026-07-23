@@ -68,7 +68,7 @@ export default function LoginForm() {
 
     const normalizedEmail = values.email.toLowerCase().trim();
 
-    if (normalizedEmail === validEmail && values.password === validPassword) {
+    if (values.email === validEmail && values.password === validPassword) {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("isLoggedIn", "true");
         window.localStorage.setItem("currentUser", validEmail);
@@ -108,7 +108,6 @@ export default function LoginForm() {
         ...getDefaultNewUserSession(),
         customerName: matchingRegisteredUser.fullName || "New Customer",
         customerEmail: normalizedEmail,
-        accountNumber: matchingRegisteredUser.accountNumber || getDefaultNewUserSession().accountNumber,
         phone: matchingRegisteredUser.phone || "",
         profileCompleted: false,
         accountType: "Atlas New Customer",
