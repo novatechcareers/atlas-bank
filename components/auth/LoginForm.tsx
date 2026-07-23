@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DEMO_CUSTOMER_EMAIL, formatCurrency, getAvailableBalance } from "@/lib/adminData";
-import { fetchRegisteredNewUserByEmailAndPassword, getDefaultNewUserSession, saveNewUserSession } from "@/lib/newUserData";
+import { fetchRegisteredNewUserByEmailAndPassword, getDefaultNewUserSession, getNewUserSession, saveNewUserSession } from "@/lib/newUserData";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type FormValues = {
@@ -99,21 +99,25 @@ export default function LoginForm() {
     }
 
     if (matchingRegisteredUser) {
+      const existingSession = getNewUserSession();
+      const stableAccountNumber = matchingRegisteredUser.accountNumber || existingSession?.accountNumber || getDefaultNewUserSession().accountNumber;
+
       if (typeof window !== "undefined") {
         window.localStorage.setItem("isLoggedIn", "true");
         window.localStorage.setItem("currentUser", normalizedEmail);
       }
 
       saveNewUserSession({
-        ...getDefaultNewUserSession(),
-        customerName: matchingRegisteredUser.fullName || "New Customer",
+        ...(existingSession ?? getDefaultNewUserSession()),
+        customerName: matchingRegisteredUser.fullName || existingSession?.customerName || "New Customer",
         customerEmail: normalizedEmail,
-        phone: matchingRegisteredUser.phone || "",
-        profileCompleted: false,
-        accountType: "Atlas New Customer",
-        availableBalance: "$0.00",
-        status: "Active",
-        customerSince: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+        phone: matchingRegisteredUser.phone || existingSession?.phone || "",
+        accountNumber: stableAccountNumber,
+        profileCompleted: Boolean(existingSession?.profileCompleted ?? false),
+        accountType: existingSession?.accountType || "Atlas New Customer",
+        availableBalance: existingSession?.availableBalance || "$0.00",
+        status: existingSession?.status || "Active",
+        customerSince: existingSession?.customerSince || new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       });
 
       router.push("/new-user/dashboard");

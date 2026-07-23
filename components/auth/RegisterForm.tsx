@@ -146,6 +146,8 @@ export default function RegisterForm() {
     const normalizedName = values.fullName.trim();
     const normalizedPhone = `+${values.countryCode.trim()} ${values.phoneNumber.trim()}`.trim();
 
+    const newSession = getDefaultNewUserSession();
+
     if (isSupabaseConfigured && supabase) {
       try {
         await saveNewUserCustomerToSupabase({
@@ -153,6 +155,7 @@ export default function RegisterForm() {
           email: normalizedEmail,
           phone: normalizedPhone,
           password: values.password,
+          accountNumber: newSession.accountNumber,
           status: "pending",
           createdAt: new Date().toISOString(),
         });
@@ -175,6 +178,7 @@ export default function RegisterForm() {
       email: normalizedEmail,
       phone: normalizedPhone,
       password: values.password,
+      accountNumber: newSession.accountNumber,
       createdAt: new Date().toISOString(),
     });
 
@@ -185,7 +189,7 @@ export default function RegisterForm() {
     }
 
     saveNewUserSession({
-      ...getDefaultNewUserSession(),
+      ...newSession,
       customerName: normalizedName,
       customerEmail: normalizedEmail,
       phone: normalizedPhone,

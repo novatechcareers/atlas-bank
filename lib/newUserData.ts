@@ -122,7 +122,29 @@ export function getNewUserSession(): NewUserAccount | null {
 }
 
 export async function refreshNewUserSessionBalance() {
-  return getNewUserSession();
+  if (typeof window === "undefined") return null;
+
+  const session = getNewUserSession();
+  if (!session) return null;
+
+  const transfers = await loadNewUserTransfers(session.customerEmail);
+  const recalculatedBalance = transfers
+    .filter((transfer) => transfer.status === "Approved")
+    .reduce((runningBalance, transfer) => {
+      if (transfer.direction === "incoming") {
+        return runningBalance + transfer.amount;
+      }
+
+      return runningBalance - transfer.totalDebit;
+    }, 0);
+
+  const nextSession = {
+    ...session,
+    availableBalance: formatBalance(recalculatedBalance),
+  };
+
+  saveNewUserSession(nextSession);
+  return nextSession;
 }
 
 export function saveNewUserSession(session: NewUserAccount) {
@@ -136,6 +158,7 @@ export async function saveNewUserCustomerToSupabase({
   email,
   phone,
   password,
+  accountNumber,
   status = "pending",
   createdAt = new Date().toISOString(),
 }: {
@@ -143,6 +166,7 @@ export async function saveNewUserCustomerToSupabase({
   email: string;
   phone: string;
   password?: string;
+  accountNumber?: string;
   status?: string;
   createdAt?: string;
 }) {
@@ -152,6 +176,7 @@ export async function saveNewUserCustomerToSupabase({
     full_name: fullName,
     email,
     phone,
+    account_number: accountNumber || getDefaultNewUserSession().accountNumber,
     created_at: createdAt,
     status,
   };
@@ -164,10 +189,21 @@ export async function saveNewUserCustomerToSupabase({
 
   if (error) {
     const missingPasswordColumn = /column\s+"password"\s+does not exist/i.test(error.message ?? "");
+    const missingAccountNumberColumn = /column\s+"account_number"\s+does not exist/i.test(error.message ?? "");
 
     if (password && missingPasswordColumn) {
       const retryRow = { ...row };
       delete retryRow.password;
+      const { error: retryError } = await supabase.from("customers").upsert([retryRow], { onConflict: "email" });
+      if (retryError) {
+        throw retryError;
+      }
+      return true;
+    }
+
+    if (missingAccountNumberColumn) {
+      const retryRow = { ...row };
+      delete retryRow.account_number;
       const { error: retryError } = await supabase.from("customers").upsert([retryRow], { onConflict: "email" });
       if (retryError) {
         throw retryError;
@@ -187,28 +223,37 @@ export async function fetchRegisteredNewUserByEmail(email: string) {
   const session = getNewUserSession();
   const sessionAccountNumber = session?.customerEmail?.toLowerCase() === email.toLowerCase() ? session.accountNumber : undefined;
 
-  const selectFields = "full_name, email, phone, password";
   const { data, error } = await supabase
     .from("customers")
-    .select(selectFields)
+    .select("full_name, email, phone, password, account_number")
     .eq("email", email)
     .single();
 
   if (error) {
     const missingPasswordColumn = /column\s+"password"\s+does not exist/i.test(error.message ?? "");
-    if (missingPasswordColumn) {
+    const missingAccountNumberColumn = /column\s+"account_number"\s+does not exist/i.test(error.message ?? "");
+
+    if (missingPasswordColumn || missingAccountNumberColumn) {
+      const fallbackSelect = missingPasswordColumn && missingAccountNumberColumn
+        ? "full_name, email, phone"
+        : missingPasswordColumn
+          ? "full_name, email, phone, account_number"
+          : "full_name, email, phone, password";
+
       const { data: fallbackData, error: fallbackError } = await supabase
         .from("customers")
-        .select("full_name, email, phone")
+        .select(fallbackSelect)
         .eq("email", email)
         .single();
+
       if (!fallbackError && fallbackData) {
+        const fallbackRecord = fallbackData as unknown as Record<string, unknown>;
         return {
-          email: String(fallbackData.email ?? ""),
-          fullName: String(fallbackData.full_name ?? "New Customer"),
-          phone: fallbackData.phone ? String(fallbackData.phone) : undefined,
-          password: undefined,
-          accountNumber: sessionAccountNumber,
+          email: String(fallbackRecord.email ?? ""),
+          fullName: String(fallbackRecord.full_name ?? "New Customer"),
+          phone: fallbackRecord.phone ? String(fallbackRecord.phone) : undefined,
+          password: fallbackRecord.password ? String(fallbackRecord.password) : undefined,
+          accountNumber: sessionAccountNumber ?? (fallbackRecord.account_number ? String(fallbackRecord.account_number) : undefined),
         };
       }
     }
@@ -219,12 +264,14 @@ export async function fetchRegisteredNewUserByEmail(email: string) {
     return null;
   }
 
+  const customerRecord = data as unknown as Record<string, unknown>;
+
   return {
-    email: String(data.email ?? ""),
-    fullName: String(data.full_name ?? "New Customer"),
-    phone: data.phone ? String(data.phone) : undefined,
-    password: data.password ? String(data.password) : undefined,
-    accountNumber: sessionAccountNumber,
+    email: String(customerRecord.email ?? ""),
+    fullName: String(customerRecord.full_name ?? "New Customer"),
+    phone: customerRecord.phone ? String(customerRecord.phone) : undefined,
+    password: customerRecord.password ? String(customerRecord.password) : undefined,
+    accountNumber: sessionAccountNumber ?? (customerRecord.account_number ? String(customerRecord.account_number) : undefined),
   };
 }
 
@@ -280,7 +327,7 @@ export function applyFundingToNewUserSession(amount: number, targetEmail?: strin
   return nextSession;
 }
 
-export function getRegisteredNewUsers(): Array<{ email: string; fullName: string; phone?: string }> {
+export function getRegisteredNewUsers(): Array<{ email: string; fullName: string; phone?: string; accountNumber?: string }> {
   if (typeof window === "undefined") return [];
 
   const registeredUsersRaw = window.localStorage.getItem("atlasRegisteredUsers");
@@ -292,14 +339,15 @@ export function getRegisteredNewUsers(): Array<{ email: string; fullName: string
     email: user.email || "",
     fullName: user.fullName || "New Customer",
     phone: user.phone || "",
+    accountNumber: user.accountNumber || "",
   })).filter((user) => user.email);
 }
 
-export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; fullName: string; phone?: string }>> {
+export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; fullName: string; phone?: string; accountNumber?: string }>> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
       .from("customers")
-      .select("full_name, email, phone")
+      .select("full_name, email, phone, account_number")
       .order("created_at", { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
@@ -308,8 +356,30 @@ export async function fetchRegisteredNewUsers(): Promise<Array<{ email: string; 
           email: String(item.email ?? ""),
           fullName: String(item.full_name ?? "New Customer"),
           phone: item.phone ? String(item.phone) : undefined,
+          accountNumber: item.account_number ? String(item.account_number) : undefined,
         }))
         .filter((user) => user.email);
+    }
+
+    if (error) {
+      const missingAccountNumberColumn = /column\s+"account_number"\s+does not exist/i.test(error.message ?? "");
+      if (missingAccountNumberColumn) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("customers")
+          .select("full_name, email, phone")
+          .order("created_at", { ascending: false });
+
+        if (!fallbackError && Array.isArray(fallbackData)) {
+          return fallbackData
+            .map((item) => ({
+              email: String(item.email ?? ""),
+              fullName: String(item.full_name ?? "New Customer"),
+              phone: item.phone ? String(item.phone) : undefined,
+              accountNumber: undefined,
+            }))
+            .filter((user) => user.email);
+        }
+      }
     }
   }
 
@@ -388,6 +458,26 @@ function mapDbTransferToClientRow(item: Record<string, unknown>): NewUserTransfe
   };
 }
 
+async function fetchRemoteNewUserTransfers(customerEmail?: string) {
+  if (!isSupabaseConfigured || !supabase) {
+    return [] as NewUserTransfer[];
+  }
+
+  const normalizedEmail = (customerEmail ?? "").trim().toLowerCase();
+  let query = supabase.from("transfers").select("*").order("submission_time", { ascending: false });
+
+  if (normalizedEmail) {
+    query = query.eq("customer_email", normalizedEmail);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return [] as NewUserTransfer[];
+  }
+
+  return (data ?? []).map(mapDbTransferToClientRow);
+}
+
 export async function loadNewUserTransfers(customerEmail?: string) {
   const localTransfers = customerEmail ? getLocalNewUserTransfersForEmail(customerEmail) : getAllLocalNewUserTransfers();
 
@@ -395,22 +485,11 @@ export async function loadNewUserTransfers(customerEmail?: string) {
     return localTransfers;
   }
 
-  const normalizedEmail = (customerEmail ?? getNewUserSession()?.customerEmail ?? "").trim().toLowerCase();
-  if (!normalizedEmail) {
-    return localTransfers;
-  }
-
-  const { data, error } = await supabase
-    .from("transfers")
-    .select("*")
-    .eq("customer_email", normalizedEmail)
-    .order("submission_time", { ascending: false });
-
-  const remoteTransfers = error ? [] : (data ?? []).map(mapDbTransferToClientRow);
+  const remoteTransfers = await fetchRemoteNewUserTransfers(customerEmail);
   const mergedByReference = new Map<string, NewUserTransfer>();
 
-  localTransfers.forEach((transfer) => mergedByReference.set(transfer.reference, transfer));
   remoteTransfers.forEach((transfer) => mergedByReference.set(transfer.reference, transfer));
+  localTransfers.forEach((transfer) => mergedByReference.set(transfer.reference, transfer));
 
   const uniqueTransfers = Array.from(mergedByReference.values());
 
@@ -503,8 +582,8 @@ function syncNewUserSessionBalance(transfer: NewUserTransfer, previousTransfer?:
 }
 
 export async function updateNewUserTransferStatus(reference: string, status: NewUserTransferStatus, adminName?: string, declineReason?: string) {
-  const localTransfers = getLocalNewUserTransfers();
-  const existingTransfer = localTransfers.find((transfer) => transfer.reference === reference);
+  const allTransfers = await loadNewUserTransfers();
+  const existingTransfer = allTransfers.find((transfer) => transfer.reference === reference);
   if (!existingTransfer) return null;
 
   const nextDate = new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
@@ -516,8 +595,13 @@ export async function updateNewUserTransferStatus(reference: string, status: New
     declineReason: status === "Declined" ? declineReason ?? existingTransfer.declineReason : undefined,
   };
 
-  const transfers = localTransfers.map((transfer) => (transfer.reference === reference ? nextTransfer : transfer));
-  saveLocalNewUserTransfers(transfers);
+  const localTransfers = getLocalNewUserTransfers();
+  const hasLocalTransfer = localTransfers.some((transfer) => transfer.reference === reference);
+  const updatedLocalTransfers = hasLocalTransfer
+    ? localTransfers.map((transfer) => (transfer.reference === reference ? nextTransfer : transfer))
+    : [nextTransfer, ...localTransfers];
+
+  saveLocalNewUserTransfers(updatedLocalTransfers);
 
   syncNewUserSessionBalance(nextTransfer, existingTransfer);
 
