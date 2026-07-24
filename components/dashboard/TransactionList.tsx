@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DEMO_CUSTOMER_EMAIL, loadTransferRequestsFromSupabase, TransferRequest } from "@/lib/adminData";
-import { loadNewUserTransfers } from "@/lib/newUserData";
+import { getNewUserSession, loadNewUserTransfers } from "@/lib/newUserData";
 
 type TransactionListProps = {
   variant?: "demo" | "new-user";
@@ -15,7 +15,8 @@ export default function TransactionList({ variant = "demo", basePath = "/dashboa
   useEffect(() => {
     const loadTransactions = async () => {
       if (variant === "new-user") {
-        const stored = await loadNewUserTransfers();
+        const session = getNewUserSession();
+        const stored = await loadNewUserTransfers(session?.customerEmail);
         setTransactions(stored.slice(0, 4) as unknown as TransferRequest[]);
         return;
       }
