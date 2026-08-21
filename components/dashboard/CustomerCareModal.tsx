@@ -12,7 +12,7 @@ type CustomerCareModalProps = {
 };
 
 const CUSTOMER_CARE_EMAIL = "workdaysupport.novatech@gmail.com";
-const CUSTOMER_CARE_SUBJECT = encodeURIComponent("Careers Inquiry");
+const CUSTOMER_CARE_SUBJECT = encodeURIComponent("Atlas Bank customer support");
 const CUSTOMER_CARE_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${CUSTOMER_CARE_EMAIL}&su=${CUSTOMER_CARE_SUBJECT}`;
 
 export default function CustomerCareModal({
@@ -42,15 +42,13 @@ export default function CustomerCareModal({
         <h3>{title}</h3>
         <p>{body}</p>
         <div className="customer-care-actions">
-          {primaryActionHref && primaryActionLabel ? (
-            <button className="primary-btn" type="button" onClick={onClose}>
-              {primaryActionLabel}
-            </button>
-          ) : (
-            <button className="primary-btn" type="button" onClick={onClose}>
-              OK
-            </button>
-          )}
+          <a
+            className="primary-btn"
+            href={primaryActionHref ?? CUSTOMER_CARE_GMAIL_URL}
+            onClick={onClose}
+          >
+            {primaryActionLabel ?? "Email customer care"}
+          </a>
         </div>
       </div>
     </div>

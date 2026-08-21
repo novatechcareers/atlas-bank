@@ -275,6 +275,25 @@ export async function fetchRegisteredNewUserByEmail(email: string) {
   };
 }
 
+export async function fetchTransferPinByEmail(email: string) {
+  if (!isSupabaseConfigured || !supabase) return null;
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("transfer_pin")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error) {
+    const missingColumn = /column\s+"transfer_pin"\s+does not exist/i.test(error.message ?? "");
+    if (missingColumn) return null;
+    throw error;
+  }
+
+  const transferPin = data?.transfer_pin;
+  return typeof transferPin === "string" && transferPin.length === 4 ? transferPin : null;
+}
+
 export async function fetchRegisteredNewUserByEmailAndPassword(email: string, password: string) {
   const user = await fetchRegisteredNewUserByEmail(email);
   if (!user || !user.password) return null;

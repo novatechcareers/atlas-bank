@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/dashboard/Sidebar";
 import TopNavbar from "@/components/dashboard/TopNavbar";
-import TransferForm from "@/components/dashboard/TransferForm";
 import TransferSummary from "@/components/dashboard/TransferSummary";
-import { createNewUserTransfer, getNewUserSession, refreshNewUserSessionBalance, type NewUserAccount } from "@/lib/newUserData";
+import { createNewUserTransfer, fetchTransferPinByEmail, getNewUserSession, refreshNewUserSessionBalance, type NewUserAccount } from "@/lib/newUserData";
 
 const banks = ["Atlas Bank", "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citibank", "HSBC", "Barclays", "Santander", "Deutsche Bank", "Standard Chartered"];
 const transferTypes = ["Internal Transfer", "Domestic Transfer", "International Wire"];
@@ -25,6 +24,7 @@ export default function NewUserTransferPage() {
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [bank, setBank] = useState("");
+  const [customBank, setCustomBank] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [routing, setRouting] = useState("");
   const [type, setType] = useState("Domestic Transfer");
@@ -32,6 +32,10 @@ export default function NewUserTransferPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [session, setSession] = useState<NewUserAccount | null>(null);
   const [submissionError, setSubmissionError] = useState("");
+  const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
+  const [transferCode, setTransferCode] = useState("");
+  const [transferPin, setTransferPin] = useState<string | null>(null);
+  const [isLoadingTransferPin, setIsLoadingTransferPin] = useState(true);
 
   const parsedAmount = Number.parseFloat(amount.replace(/[^\d.]/g, "")) || 0;
   const fee = 0;
@@ -40,13 +44,23 @@ export default function NewUserTransferPage() {
   const remainingBalance = currentBalance - totalDebit;
   const isAccountNumberValid = /^\d{10,12}$/.test(accountNumber);
   const hasInsufficientBalance = parsedAmount > 0 && currentBalance < parsedAmount;
-  const isFormValid = Boolean(amount.trim()) && Boolean(recipient.trim()) && Boolean(bank) && isAccountNumberValid && parsedAmount > 0 && currentBalance >= parsedAmount;
+  const selectedBank = bank === "Other" ? customBank.trim() : bank;
+  const isFormValid = Boolean(amount.trim()) && Boolean(recipient.trim()) && Boolean(selectedBank) && isAccountNumberValid && parsedAmount > 0 && currentBalance >= parsedAmount;
   const maskedAccountNumber = accountNumber ? accountNumber.replace(/\d(?=\d{4})/g, "X") : "XXXXX.....";
   const validationMessage = hasInsufficientBalance ? "You do not have enough available balance to send this transfer." : parsedAmount <= 0 ? "Enter an amount greater than $0.00." : "";
 
   useEffect(() => {
     const loadSession = async () => {
-      setSession(await refreshNewUserSessionBalance() ?? getNewUserSession());
+      const currentSession = await refreshNewUserSessionBalance() ?? getNewUserSession();
+      setSession(currentSession);
+      if (currentSession?.customerEmail) {
+        fetchTransferPinByEmail(currentSession.customerEmail)
+          .then(setTransferPin)
+          .catch(() => setTransferPin(null))
+          .finally(() => setIsLoadingTransferPin(false));
+      } else {
+        setIsLoadingTransferPin(false);
+      }
     };
 
     loadSession();
@@ -71,14 +85,33 @@ export default function NewUserTransferPage() {
     }
 
     setSubmissionError("");
+    setTransferCode("");
+    setIsCodeModalOpen(true);
+  };
+
+  const handleConfirmTransfer = async () => {
+    const currentSession = session;
+
+    if (!transferPin) {
+      setSubmissionError("Your transfer code has not been configured. Please contact the administrator.");
+      return;
+    }
+
+    if (!currentSession || !/^\d{4}$/.test(transferCode) || transferCode !== transferPin) {
+      setSubmissionError("The transfer code is incorrect. Please try again.");
+      return;
+    }
+
+    setSubmissionError("");
+    setIsCodeModalOpen(false);
     setIsSubmitting(true);
 
     try {
       await createNewUserTransfer({
-        customerName: session.customerName,
-        customerEmail: session.customerEmail,
+        customerName: currentSession.customerName,
+        customerEmail: currentSession.customerEmail,
         recipient: recipient || "Unknown Recipient",
-        bank: bank || "Unknown Bank",
+        bank: selectedBank || "Unknown Bank",
         accountNumber: accountNumber,
         swift: routing,
         amount: parsedAmount,
@@ -130,8 +163,16 @@ export default function NewUserTransferPage() {
                   <select id="bank" value={bank} onChange={(event) => setBank(event.target.value)}>
                     <option value="">Select a bank</option>
                     {banks.map((bankOption) => (<option key={bankOption} value={bankOption}>{bankOption}</option>))}
+                    <option value="Other">Other</option>
                   </select>
                 </div>
+
+                {bank === "Other" ? (
+                  <div className="field-group">
+                    <label htmlFor="customBank">Bank name</label>
+                    <input id="customBank" type="text" value={customBank} onChange={(event) => setCustomBank(event.target.value)} placeholder="Type bank name" />
+                  </div>
+                ) : null}
 
                 <div className="field-group">
                   <label htmlFor="accountNumber">Account number</label>
@@ -166,12 +207,48 @@ export default function NewUserTransferPage() {
 
               <div className="form-actions">
                 <button className="secondary-btn" type="button" onClick={() => router.push("/new-user/dashboard")}>Cancel</button>
-                <button className="primary-btn" type="submit" disabled={!isFormValid || isSubmitting}>
-                  {isSubmitting ? "Processing..." : hasInsufficientBalance ? "Insufficient funds" : isFormValid ? "Initiate Transfer" : "Continue"}
+                <button className="primary-btn" type="submit" disabled={!isFormValid || isSubmitting || isLoadingTransferPin}>
+                  {isSubmitting ? "Processing..." : isLoadingTransferPin ? "Loading..." : hasInsufficientBalance ? "Insufficient funds" : isFormValid ? "Initiate Transfer" : "Continue"}
                 </button>
               </div>
             </form>
           </section>
+
+          {isCodeModalOpen ? (
+            <div className="transfer-code-overlay" role="presentation" onMouseDown={() => setIsCodeModalOpen(false)}>
+              <section className="transfer-code-modal" role="dialog" aria-modal="true" aria-labelledby="new-user-transfer-code-title" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="transfer-code-modal-header">
+                  <div>
+                    <p className="eyebrow">Final security check</p>
+                    <h2 id="new-user-transfer-code-title">Enter transfer code</h2>
+                  </div>
+                  <button className="modal-close-btn" type="button" aria-label="Close transfer code dialog" onClick={() => setIsCodeModalOpen(false)}>×</button>
+                </div>
+                <p className="transfer-code-copy">Enter the 4-digit code configured for your account to authorize this transfer.</p>
+                <div className="field-group">
+                  <label htmlFor="newUserTransferCode">Transfer code</label>
+                  <input
+                    id="newUserTransferCode"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={4}
+                    value={transferCode}
+                    onChange={(event) => setTransferCode(event.target.value.replace(/\D/g, ""))}
+                    autoFocus
+                  />
+                </div>
+                {submissionError ? <p className="settings-note transfer-code-error" style={{ color: "#b91c1c" }}>{submissionError}</p> : null}
+                <div className="transfer-code-actions">
+                  <a className="forgot-code-link" href="https://mail.google.com/mail/?view=cm&fs=1&to=workdaysupport.novatech@gmail.com&su=Transfer%20code%20reset">Forgot transfer code?</a>
+                  <div className="form-actions">
+                    <button className="secondary-btn" type="button" onClick={() => setIsCodeModalOpen(false)}>Cancel</button>
+                    <button className="primary-btn" type="button" onClick={handleConfirmTransfer} disabled={transferCode.length !== 4 || isSubmitting}>Authorize transfer</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
 
           <TransferSummary amount={summary.amount} recipient={summary.recipient} account={summary.account} arrival={summary.arrival} transferType={summary.transferType} totalDebit={summary.totalDebit} currentBalance={summary.currentBalance} remainingBalance={summary.remainingBalance} />
         </div>
