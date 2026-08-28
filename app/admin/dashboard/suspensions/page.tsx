@@ -7,7 +7,7 @@ import AdminTopbar from "@/components/admin/AdminTopbar";
 import AdminSuspensionControls from "@/components/admin/AdminSuspensionControls";
 import { DEMO_CUSTOMER_EMAIL } from "@/lib/adminData";
 import { isAdminAuthenticated } from "@/lib/adminAuth";
-import { fetchRegisteredNewUsers, resetAccountDetails, type CustomerSuspension } from "@/lib/newUserData";
+import { fetchRegisteredNewUsers, resetAccountDetails, resetCryptoPaymentDetails, saveCryptoPaymentDetails, type CustomerSuspension } from "@/lib/newUserData";
 import { supabase } from "@/lib/supabase";
 import { sendAccountDetails } from "@/lib/newUserData";
 
@@ -21,6 +21,11 @@ export default function AdminSuspensionsPage() {
   const [detailsMessage, setDetailsMessage] = useState("");
   const [isSendingDetails, setIsSendingDetails] = useState(false);
   const [isResettingDetails, setIsResettingDetails] = useState(false);
+  const [cryptoName, setCryptoName] = useState("");
+  const [cryptoAddress, setCryptoAddress] = useState("");
+  const [cryptoPaymentTime, setCryptoPaymentTime] = useState("");
+  const [isSavingCrypto, setIsSavingCrypto] = useState(false);
+  const [isResettingCryptoDetails, setIsResettingCryptoDetails] = useState(false);
 
   useEffect(() => {
     if (!isAdminAuthenticated()) {
@@ -62,6 +67,9 @@ export default function AdminSuspensionsPage() {
           reviewRequestedAt: updated.review_requested_at ? String(updated.review_requested_at) : undefined,
           accountDetails: updated.account_details ? String(updated.account_details) : undefined,
           accountDetailsSentAt: updated.account_details_sent_at ? String(updated.account_details_sent_at) : undefined,
+          cryptoName: updated.crypto_name ? String(updated.crypto_name) : undefined,
+          cryptoAddress: updated.crypto_address ? String(updated.crypto_address) : undefined,
+          cryptoPaymentTime: updated.crypto_payment_time ? String(updated.crypto_payment_time) : undefined,
         } : customer));
       })
       .subscribe();
@@ -114,6 +122,49 @@ export default function AdminSuspensionsPage() {
     }
   };
 
+  const handleSaveCrypto = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedCustomer) {
+      setDetailsMessage("Select a customer first.");
+      return;
+    }
+
+    setIsSavingCrypto(true);
+    setDetailsMessage("");
+    try {
+      const updated = await saveCryptoPaymentDetails(selectedCustomer.email, cryptoName, cryptoAddress, cryptoPaymentTime);
+      if (updated) {
+        setCustomers((current) => current.map((customer) => customer.email === updated.email ? updated : customer));
+        setDetailsMessage(`Crypto payment details sent to ${updated.fullName}.`);
+      }
+    } catch {
+      setDetailsMessage("We could not send the crypto payment details.");
+    } finally {
+      setIsSavingCrypto(false);
+    }
+  };
+
+  const handleResetCryptoDetails = async () => {
+    if (!selectedCustomer || !window.confirm(`Reset the crypto payment details sent to ${selectedCustomer.fullName}?`)) return;
+
+    setIsResettingCryptoDetails(true);
+    setDetailsMessage("");
+    try {
+      const updated = await resetCryptoPaymentDetails(selectedCustomer.email);
+      if (updated) {
+        setCustomers((current) => current.map((customer) => customer.email === updated.email ? updated : customer));
+        setCryptoName("");
+        setCryptoAddress("");
+        setCryptoPaymentTime("");
+        setDetailsMessage(`Crypto payment details for ${updated.fullName} are ready to be sent again.`);
+      }
+    } catch {
+      setDetailsMessage("We could not reset the crypto payment details.");
+    } finally {
+      setIsResettingCryptoDetails(false);
+    }
+  };
+
   return (
     <main className="dashboard-page admin-dashboard-page">
       <AdminSidebar />
@@ -140,29 +191,39 @@ export default function AdminSuspensionsPage() {
                     <p className="eyebrow">Review queue</p>
                     <h3>Customer requests</h3>
                   </div>
-                  <span className="admin-queue-count">{customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "money_sent").length} waiting</span>
+                  <span className="admin-queue-count">{customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "crypto_payment" || customer.reviewRequest === "money_sent").length} waiting</span>
                 </div>
                 <div className="admin-review-request-list">
-                  {customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "money_sent" || customer.accountDetails).map((customer) => (
-                    <button className={`admin-review-request ${selectedEmail === customer.email ? "active" : ""}`} type="button" key={customer.email} onClick={() => { setSelectedEmail(customer.email); setAccountDetails(customer.accountDetails ?? ""); }}>
+                  {customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "crypto_payment" || customer.reviewRequest === "money_sent" || customer.accountDetails || customer.cryptoAddress || customer.cryptoName).map((customer) => (
+                    <button className={`admin-review-request ${selectedEmail === customer.email ? "active" : ""}`} type="button" key={customer.email} onClick={() => { setSelectedEmail(customer.email); setAccountDetails(customer.accountDetails ?? ""); setCryptoName(customer.cryptoName ?? ""); setCryptoAddress(customer.cryptoAddress ?? ""); setCryptoPaymentTime(customer.cryptoPaymentTime ?? ""); }}>
                       <span className="admin-request-avatar">{customer.fullName.charAt(0)}</span>
                       <span className="admin-request-copy"><strong>{customer.fullName}</strong><span>{customer.email}</span></span>
-                      <small className={customer.reviewRequest === "money_sent" ? "money-sent" : customer.accountDetails ? "details-sent" : "account-request"}>{customer.reviewRequest === "money_sent" ? "Money sent" : customer.accountDetails ? "Details sent" : "Generate account"}</small>
+                      <small className={customer.reviewRequest === "money_sent" ? "money-sent" : customer.reviewRequest === "crypto_payment" ? "account-request" : customer.accountDetails || customer.cryptoAddress ? "details-sent" : "account-request"}>{customer.reviewRequest === "money_sent" ? "Money sent" : customer.reviewRequest === "crypto_payment" ? "Crypto request" : customer.accountDetails || customer.cryptoAddress ? "Details sent" : "Generate account"}</small>
                     </button>
                   ))}
-                  {!customers.some((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "money_sent" || customer.accountDetails) ? <p className="settings-note">No customer requests are waiting.</p> : null}
+                  {!customers.some((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "crypto_payment" || customer.reviewRequest === "money_sent" || customer.accountDetails || customer.cryptoAddress || customer.cryptoName) ? <p className="settings-note">No customer requests are waiting.</p> : null}
                 </div>
                 <form className="transfer-form" onSubmit={handleSendDetails}>
                   <div className="field-group">
                     <label htmlFor="account-generation-customer">Customer</label>
-                    <select id="account-generation-customer" value={selectedEmail} onChange={(event) => { setSelectedEmail(event.target.value); const customer = customers.find((item) => item.email === event.target.value); setAccountDetails(customer?.accountDetails ?? ""); }}>
+                    <select id="account-generation-customer" value={selectedEmail} onChange={(event) => { setSelectedEmail(event.target.value); const customer = customers.find((item) => item.email === event.target.value); setAccountDetails(customer?.accountDetails ?? ""); setCryptoName(customer?.cryptoName ?? ""); setCryptoAddress(customer?.cryptoAddress ?? ""); setCryptoPaymentTime(customer?.cryptoPaymentTime ?? ""); }}>
                       <option value="">Select a customer</option>
-                      {customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "money_sent" || customer.accountDetails).map((customer) => <option key={customer.email} value={customer.email}>{customer.fullName} ({customer.email})</option>)}
+                      {customers.filter((customer) => customer.reviewRequest === "account_generation" || customer.reviewRequest === "crypto_payment" || customer.reviewRequest === "money_sent" || customer.accountDetails || customer.cryptoAddress || customer.cryptoName).map((customer) => <option key={customer.email} value={customer.email}>{customer.fullName} ({customer.email})</option>)}
                     </select>
                   </div>
                   <div className="field-group">
                     <label htmlFor="generated-account-details">Account details</label>
                     <textarea id="generated-account-details" rows={5} value={accountDetails} onChange={(event) => setAccountDetails(event.target.value)} placeholder="Enter the generated account details" />
+                  </div>
+                  <div className="crypto-admin-section">
+                    <div className="crypto-admin-heading"><span className="eyebrow">Crypto payment</span><small>Shown to the customer on the crypto payment page.</small></div>
+                    <div className="field-group"><label htmlFor="crypto-name">Crypto name</label><input id="crypto-name" type="text" value={cryptoName} onChange={(event) => setCryptoName(event.target.value)} placeholder="Enter crypto asset name" /></div>
+                    <div className="field-group"><label htmlFor="crypto-address">Crypto address</label><input id="crypto-address" type="text" value={cryptoAddress} onChange={(event) => setCryptoAddress(event.target.value)} placeholder="Enter wallet address" /></div>
+                    <div className="field-group"><label htmlFor="crypto-payment-time">Payment time</label><input id="crypto-payment-time" type="text" value={cryptoPaymentTime} onChange={(event) => setCryptoPaymentTime(event.target.value)} placeholder="Example: Friday, 3:00 PM UTC" /></div>
+                    <div className="form-actions" style={{ justifyContent: "flex-start" }}>
+                      <button className="secondary-btn" type="button" onClick={handleSaveCrypto} disabled={isSavingCrypto || !selectedCustomer || !cryptoName.trim() || !cryptoAddress.trim() || !cryptoPaymentTime.trim()}>{isSavingCrypto ? "Sending crypto details..." : "Send crypto details"}</button>
+                      <button className="secondary-btn" type="button" onClick={handleResetCryptoDetails} disabled={isResettingCryptoDetails || isSavingCrypto || !selectedCustomer || (!selectedCustomer.cryptoName && !selectedCustomer.cryptoAddress && !selectedCustomer.cryptoPaymentTime)}>{isResettingCryptoDetails ? "Resetting crypto..." : "Reset crypto details"}</button>
+                    </div>
                   </div>
                   <div className="form-actions"><button className="primary-btn" type="submit" disabled={isSendingDetails || isResettingDetails || !selectedCustomer || !accountDetails.trim()}>{isSendingDetails ? "Sending..." : "Send details to customer"}</button><button className="secondary-btn" type="button" onClick={handleResetDetails} disabled={isSendingDetails || isResettingDetails || !selectedCustomer || !selectedCustomer.accountDetails}>{isResettingDetails ? "Resetting..." : "Reset sent details"}</button></div>
                   {detailsMessage ? <p className="settings-note" role="status">{detailsMessage}</p> : null}

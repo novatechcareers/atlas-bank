@@ -84,6 +84,9 @@ export type CustomerSuspension = {
   reviewRequestedAt?: string;
   accountDetails?: string;
   accountDetailsSentAt?: string;
+  cryptoName?: string;
+  cryptoAddress?: string;
+  cryptoPaymentTime?: string;
 };
 
 const NEW_USER_SESSION_KEY = "atlasNewUserSession";
@@ -114,8 +117,8 @@ export function getDefaultNewUserSession() {
     phone: "",
     dob: "",
     address: "",
-    iban: "GB89ATLS0000000001",
-    swift: "ATLSUS33",
+    iban: "Not available",
+    swift: "Not available",
     customerSince: "July 2026",
   } satisfies NewUserAccount;
 }
@@ -312,7 +315,7 @@ export async function fetchCustomerSuspensionByEmail(email: string): Promise<Cus
 
   const { data, error } = await supabase
     .from("customers")
-    .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at")
+    .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time")
     .eq("email", email)
     .maybeSingle();
 
@@ -324,18 +327,78 @@ export async function fetchCustomerSuspensionByEmail(email: string): Promise<Cus
 
   if (!data) return null;
 
+  const customerRecord = data as unknown as Record<string, unknown>;
   return {
-    email: String(data.email ?? email),
-    fullName: String(data.full_name ?? "New Customer"),
-    phone: data.phone ? String(data.phone) : undefined,
-    accountNumber: data.account_number ? String(data.account_number) : undefined,
-    suspended: data.suspended === true,
-    suspensionReason: data.suspension_reason ? String(data.suspension_reason) : undefined,
-    reviewRequest: data.review_request ? String(data.review_request) : undefined,
-    reviewRequestedAt: data.review_requested_at ? String(data.review_requested_at) : undefined,
-    accountDetails: data.account_details ? String(data.account_details) : undefined,
-    accountDetailsSentAt: data.account_details_sent_at ? String(data.account_details_sent_at) : undefined,
+    email: String(customerRecord.email ?? email),
+    fullName: String(customerRecord.full_name ?? "New Customer"),
+    phone: customerRecord.phone ? String(customerRecord.phone) : undefined,
+    accountNumber: customerRecord.account_number ? String(customerRecord.account_number) : undefined,
+    suspended: customerRecord.suspended === true,
+    suspensionReason: customerRecord.suspension_reason ? String(customerRecord.suspension_reason) : undefined,
+    reviewRequest: customerRecord.review_request ? String(customerRecord.review_request) : undefined,
+    reviewRequestedAt: customerRecord.review_requested_at ? String(customerRecord.review_requested_at) : undefined,
+    accountDetails: customerRecord.account_details ? String(customerRecord.account_details) : undefined,
+    accountDetailsSentAt: customerRecord.account_details_sent_at ? String(customerRecord.account_details_sent_at) : undefined,
+    cryptoName: customerRecord.crypto_name ? String(customerRecord.crypto_name) : undefined,
+    cryptoAddress: customerRecord.crypto_address ? String(customerRecord.crypto_address) : undefined,
+    cryptoPaymentTime: customerRecord.crypto_payment_time ? String(customerRecord.crypto_payment_time) : undefined,
   };
+}
+
+export async function requestCryptoPayment(email: string) {
+  if (!isSupabaseConfigured || !supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase.from("customers").update({
+    review_request: "crypto_payment",
+    review_requested_at: new Date().toISOString(),
+    account_details: null,
+    account_details_sent_at: null,
+    crypto_name: null,
+    crypto_address: null,
+    crypto_payment_time: null,
+  }).eq("email", email);
+
+  if (error) throw error;
+}
+
+export async function sendCryptoPaymentDetails(email: string, cryptoName: string, cryptoAddress: string, cryptoPaymentTime: string) {
+  if (!isSupabaseConfigured || !supabase) throw new Error("Supabase is not configured.");
+  const name = cryptoName.trim();
+  const address = cryptoAddress.trim();
+  const paymentTime = cryptoPaymentTime.trim();
+  if (!name || !address || !paymentTime) throw new Error("Crypto name, address, and payment time are required.");
+
+  const { data, error } = await supabase.from("customers").update({
+    crypto_name: name,
+    crypto_address: address,
+    crypto_payment_time: paymentTime,
+    account_details: null,
+    account_details_sent_at: null,
+    review_request: null,
+  }).eq("email", email).select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time").single();
+
+  if (error) throw error;
+  if (!data) return null;
+  const record = data as unknown as Record<string, unknown>;
+  return {
+    email: String(record.email ?? email),
+    fullName: String(record.full_name ?? "New Customer"),
+    phone: record.phone ? String(record.phone) : undefined,
+    accountNumber: record.account_number ? String(record.account_number) : undefined,
+    suspended: record.suspended === true,
+    suspensionReason: record.suspension_reason ? String(record.suspension_reason) : undefined,
+    reviewRequest: record.review_request ? String(record.review_request) : undefined,
+    reviewRequestedAt: record.review_requested_at ? String(record.review_requested_at) : undefined,
+    accountDetails: record.account_details ? String(record.account_details) : undefined,
+    accountDetailsSentAt: record.account_details_sent_at ? String(record.account_details_sent_at) : undefined,
+    cryptoName: record.crypto_name ? String(record.crypto_name) : undefined,
+    cryptoAddress: record.crypto_address ? String(record.crypto_address) : undefined,
+    cryptoPaymentTime: record.crypto_payment_time ? String(record.crypto_payment_time) : undefined,
+  } satisfies CustomerSuspension;
+}
+
+export async function saveCryptoPaymentDetails(email: string, cryptoName: string, cryptoAddress: string, cryptoPaymentTime: string) {
+  return sendCryptoPaymentDetails(email, cryptoName, cryptoAddress, cryptoPaymentTime);
 }
 
 export async function requestAccountGeneration(email: string) {
@@ -346,6 +409,25 @@ export async function requestAccountGeneration(email: string) {
     review_requested_at: new Date().toISOString(),
     account_details: null,
     account_details_sent_at: null,
+    crypto_name: null,
+    crypto_address: null,
+    crypto_payment_time: null,
+  }).eq("email", email);
+
+  if (error) throw error;
+}
+
+export async function cancelPendingReviewRequest(email: string) {
+  if (!isSupabaseConfigured || !supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase.from("customers").update({
+    review_request: null,
+    review_requested_at: null,
+    account_details: null,
+    account_details_sent_at: null,
+    crypto_name: null,
+    crypto_address: null,
+    crypto_payment_time: null,
   }).eq("email", email);
 
   if (error) throw error;
@@ -370,8 +452,11 @@ export async function sendAccountDetails(email: string, accountDetails: string) 
   const { data, error } = await supabase.from("customers").update({
     account_details: details,
     account_details_sent_at: new Date().toISOString(),
+    crypto_name: null,
+    crypto_address: null,
+    crypto_payment_time: null,
     review_request: null,
-  }).eq("email", email).select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at").single();
+  }).eq("email", email).select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time").single();
 
   if (error) throw error;
   if (!data) return null;
@@ -407,13 +492,16 @@ export async function updateCustomerSuspension(email: string, suspended: boolean
   if (error) throw error;
   if (!data) return null;
 
+  const customerRecord = data as unknown as Record<string, unknown>;
   return {
-    email: String(data.email ?? email),
-    fullName: String(data.full_name ?? "New Customer"),
-    phone: data.phone ? String(data.phone) : undefined,
-    accountNumber: data.account_number ? String(data.account_number) : undefined,
-    suspended: data.suspended === true,
-    suspensionReason: data.suspension_reason ? String(data.suspension_reason) : undefined,
+    email: String(customerRecord.email ?? email),
+    fullName: String(customerRecord.full_name ?? "New Customer"),
+    phone: customerRecord.phone ? String(customerRecord.phone) : undefined,
+    accountNumber: customerRecord.account_number ? String(customerRecord.account_number) : undefined,
+    suspended: customerRecord.suspended === true,
+    suspensionReason: customerRecord.suspension_reason ? String(customerRecord.suspension_reason) : undefined,
+    cryptoAddress: customerRecord.crypto_address ? String(customerRecord.crypto_address) : undefined,
+    cryptoPaymentTime: customerRecord.crypto_payment_time ? String(customerRecord.crypto_payment_time) : undefined,
   } satisfies CustomerSuspension;
 }
 
@@ -429,9 +517,12 @@ export async function resetAccountDetails(email: string) {
       review_requested_at: new Date().toISOString(),
       account_details: null,
       account_details_sent_at: null,
+      crypto_name: null,
+      crypto_address: null,
+      crypto_payment_time: null,
     })
     .eq("email", email)
-    .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at")
+    .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time")
     .single();
 
   if (error) throw error;
@@ -449,6 +540,50 @@ export async function resetAccountDetails(email: string) {
     reviewRequestedAt: new Date().toISOString(),
     accountDetails: undefined,
     accountDetailsSentAt: undefined,
+    cryptoName: customerRecord.crypto_name ? String(customerRecord.crypto_name) : undefined,
+    cryptoAddress: customerRecord.crypto_address ? String(customerRecord.crypto_address) : undefined,
+    cryptoPaymentTime: customerRecord.crypto_payment_time ? String(customerRecord.crypto_payment_time) : undefined,
+  } satisfies CustomerSuspension;
+}
+
+export async function resetCryptoPaymentDetails(email: string) {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error("Supabase is not configured.");
+  }
+
+  const { data, error } = await supabase
+    .from("customers")
+    .update({
+      review_request: "crypto_payment",
+      review_requested_at: new Date().toISOString(),
+      account_details: null,
+      account_details_sent_at: null,
+      crypto_name: null,
+      crypto_address: null,
+      crypto_payment_time: null,
+    })
+    .eq("email", email)
+    .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time")
+    .single();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const customerRecord = data as unknown as Record<string, unknown>;
+  return {
+    email: String(customerRecord.email ?? email),
+    fullName: String(customerRecord.full_name ?? "New Customer"),
+    phone: customerRecord.phone ? String(customerRecord.phone) : undefined,
+    accountNumber: customerRecord.account_number ? String(customerRecord.account_number) : undefined,
+    suspended: customerRecord.suspended === true,
+    suspensionReason: customerRecord.suspension_reason ? String(customerRecord.suspension_reason) : undefined,
+    reviewRequest: "crypto_payment",
+    reviewRequestedAt: new Date().toISOString(),
+    accountDetails: customerRecord.account_details ? String(customerRecord.account_details) : undefined,
+    accountDetailsSentAt: customerRecord.account_details_sent_at ? String(customerRecord.account_details_sent_at) : undefined,
+    cryptoName: undefined,
+    cryptoAddress: undefined,
+    cryptoPaymentTime: undefined,
   } satisfies CustomerSuspension;
 }
 
@@ -524,7 +659,7 @@ export async function fetchRegisteredNewUsers(): Promise<CustomerSuspension[]> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase
       .from("customers")
-      .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at")
+      .select("full_name, email, phone, account_number, suspended, suspension_reason, review_request, review_requested_at, account_details, account_details_sent_at, crypto_name, crypto_address, crypto_payment_time")
       .order("created_at", { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
@@ -542,6 +677,9 @@ export async function fetchRegisteredNewUsers(): Promise<CustomerSuspension[]> {
             reviewRequestedAt: customerRecord.review_requested_at ? String(customerRecord.review_requested_at) : undefined,
             accountDetails: customerRecord.account_details ? String(customerRecord.account_details) : undefined,
             accountDetailsSentAt: customerRecord.account_details_sent_at ? String(customerRecord.account_details_sent_at) : undefined,
+            cryptoName: customerRecord.crypto_name ? String(customerRecord.crypto_name) : undefined,
+            cryptoAddress: customerRecord.crypto_address ? String(customerRecord.crypto_address) : undefined,
+            cryptoPaymentTime: customerRecord.crypto_payment_time ? String(customerRecord.crypto_payment_time) : undefined,
           };
         })
         .filter((user) => user.email);

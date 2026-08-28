@@ -5,6 +5,7 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import TopNavbar from "@/components/dashboard/TopNavbar";
 import ProfileCard from "@/components/dashboard/ProfileCard";
 import ProfileInfo from "@/components/dashboard/ProfileInfo";
+import { getDefaultNewUserSession } from "@/lib/newUserData";
 
 type DemoProfileState = {
   name: string;
@@ -40,11 +41,12 @@ export default function ProfilePage() {
     });
   }, []);
 
-  const accountNumber = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("accountNumber") || "4589201834" : "4589201834", []);
-  const iban = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("iban") || "GB89ABCD1234567890" : "GB89ABCD1234567890", []);
-  const swift = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("swift") || "ATLSUS33" : "ATLSUS33", []);
-  const customerSince = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("customerSince") || "March 2019" : "March 2019", []);
-  const accountType = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("accountType") || "Premier Checking" : "Premier Checking", []);
+  const defaultSession = useMemo(() => getDefaultNewUserSession(), []);
+  const accountNumber = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("accountNumber") || defaultSession.accountNumber : defaultSession.accountNumber, [defaultSession]);
+  const iban = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("iban") || defaultSession.iban : defaultSession.iban, [defaultSession]);
+  const swift = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("swift") || defaultSession.swift : defaultSession.swift, [defaultSession]);
+  const customerSince = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("customerSince") || defaultSession.customerSince : defaultSession.customerSince, [defaultSession]);
+  const accountType = useMemo(() => typeof window !== "undefined" ? window.localStorage.getItem("accountType") || defaultSession.accountType : defaultSession.accountType, [defaultSession]);
 
   return (
     <main className="dashboard-page profile-page">

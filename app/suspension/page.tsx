@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchCustomerSuspensionByEmail, getNewUserSession } from "@/lib/newUserData";
 import { DEMO_CUSTOMER_EMAIL } from "@/lib/adminData";
+import FormattedText from "@/components/common/FormattedText";
 
 export default function SuspensionPage() {
   const router = useRouter();
@@ -47,13 +48,13 @@ export default function SuspensionPage() {
           <p className="eyebrow">Account access</p>
           <div className="suspension-status-icon" aria-hidden="true">!</div>
           <h1 id="suspension-title">Account suspended</h1>
-          {isLoading ? <p>Loading your account details...</p> : <p>{reason}</p>}
+          {isLoading ? <p>Loading your account details...</p> : <FormattedText className="suspension-reason" text={reason} />}
         </div>
 
         <div className="form-actions suspension-actions">
           <a className="secondary-btn" href="mailto:workdaysupport.novatech@gmail.com?subject=Atlas%20Bank%20account%20suspension&body=Hello%20Atlas%20Bank%20Support%2C%0A%0AI%20need%20help%20with%20my%20suspended%20account.">Customer care</a>
           <button className="secondary-btn" type="button" onClick={() => router.back()}>Back</button>
-          <button className="primary-btn" type="button" onClick={() => router.push("/suspension/continue")} disabled={isLoading}>Continue</button>
+          <button className="primary-btn" type="button" onClick={() => router.push("/suspension/installment")} disabled={isLoading}>Reactivate</button>
         </div>
       </section>
     </main>

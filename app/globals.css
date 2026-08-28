@@ -1954,6 +1954,8 @@ a {
   place-items: center;
   padding: 1rem;
   background: rgba(11, 31, 58, 0.56);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .transfer-code-modal {
@@ -2338,6 +2340,25 @@ a {
   color: var(--muted);
 }
 
+.suspension-reason {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 420px;
+  color: var(--muted);
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.formatted-text-line {
+  display: block;
+  min-height: 1.5em;
+}
+
+.suspension-reason strong {
+  color: var(--primary);
+  font-weight: 800;
+}
+
 .suspension-status-icon,
 .suspension-review-mark {
   width: 4.25rem;
@@ -2600,6 +2621,151 @@ a {
 .suspension-money-action .primary-btn { flex: 0 0 auto; white-space: nowrap; }
 
 .suspension-actions { margin-top: 1.35rem; padding-top: 1.1rem; border-top: 1px solid rgba(11, 31, 58, 0.1); }
+
+.installment-card .auth-card-header h1 {
+  max-width: 15ch;
+}
+
+.installment-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.installment-form .field-group {
+  gap: 0.45rem;
+}
+
+.installment-form .field-group label {
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.installment-form select,
+.installment-form input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(16, 41, 70, 0.14);
+  border-radius: 0.65rem;
+  background: #fbfaf7;
+  color: var(--text);
+  font: inherit;
+}
+
+.installment-form select:focus,
+.installment-form input:focus {
+  outline: 2px solid rgba(212, 175, 55, 0.24);
+  border-color: #c59e32;
+}
+
+.currency-field {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  border: 1px solid rgba(16, 41, 70, 0.14);
+  border-radius: 0.65rem;
+  background: #fbfaf7;
+  overflow: hidden;
+}
+
+.currency-field > span {
+  padding-left: 0.95rem;
+  color: #9a7615;
+  font-weight: 800;
+}
+
+.currency-field input {
+  min-height: 48px;
+  padding-left: 0.35rem;
+  border: 0;
+  background: transparent;
+}
+
+.currency-field:focus-within {
+  outline: 2px solid rgba(212, 175, 55, 0.24);
+  border-color: #c59e32;
+}
+
+.installment-actions {
+  justify-content: space-between;
+  margin-top: 0.35rem;
+}
+
+.installment-actions .primary-btn {
+  flex: 1;
+}
+
+.installment-options {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.installment-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(16, 41, 70, 0.12);
+  border-radius: 0.65rem;
+  background: #fbfaf7;
+  cursor: pointer;
+}
+
+.installment-option.selected {
+  border-color: #c59e32;
+  background: #fffaf0;
+  box-shadow: 0 8px 18px rgba(16, 41, 70, 0.06);
+}
+
+.installment-option input {
+  width: 1rem;
+  min-height: 1rem;
+  accent-color: #9a7615;
+}
+
+.installment-option-copy { display: grid; gap: 0.1rem; }
+.installment-option-copy strong { color: var(--primary); font-size: 0.92rem; }
+.installment-option-copy small { color: var(--muted); font-size: 0.74rem; }
+.installment-option-price { color: #8d6c10; font-family: Georgia, "Times New Roman", serif; font-size: 1.08rem; white-space: nowrap; }
+
+.crypto-card .suspension-review-mark { font-size: 1.35rem; }
+
+.crypto-details {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.crypto-details div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 0.65rem;
+  background: #fffaf0;
+}
+
+.crypto-details span { color: #9a7615; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.crypto-details strong { overflow-wrap: anywhere; color: var(--primary); font-size: 0.88rem; }
+
+.crypto-admin-section {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid rgba(212, 175, 55, 0.32);
+  border-radius: 0.65rem;
+  background: #fffaf0;
+}
+
+.crypto-admin-heading { display: grid; gap: 0.15rem; }
+.crypto-admin-heading .eyebrow { width: fit-content; margin: 0; padding: 0; background: transparent; font-size: 0.68rem; }
+.crypto-admin-heading small { color: var(--muted); font-size: 0.75rem; }
 
 .admin-request-heading { align-items: center; }
 
@@ -2939,6 +3105,12 @@ a {
 .field-group textarea {
   min-height: 100px;
   resize: vertical;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .field-group input:focus,

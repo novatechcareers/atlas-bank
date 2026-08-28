@@ -9,11 +9,11 @@ type ProfileInfoProps = {
 };
 
 export default function ProfileInfo({
-  accountNumber = "4589201834",
-  iban = "GB89ABCD1234567890",
-  swift = "ATLSUS33",
-  customerSince = "March 2019",
-  accountType = "Premier Checking",
+  accountNumber = "Not available",
+  iban = "Not available",
+  swift = "Not available",
+  customerSince = "Not available",
+  accountType = "Not available",
   branch = "Atlas Manhattan",
   onEditProfile,
 }: ProfileInfoProps) {

@@ -4,7 +4,9 @@ alter table public.customers
   add column if not exists review_request text,
   add column if not exists review_requested_at timestamptz,
   add column if not exists account_details text,
-  add column if not exists account_details_sent_at timestamptz;
+  add column if not exists account_details_sent_at timestamptz,
+  add column if not exists crypto_address text,
+  add column if not exists crypto_payment_time text;
 
 do $$
 begin

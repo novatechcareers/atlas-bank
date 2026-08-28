@@ -85,6 +85,7 @@ export default function AdminSuspensionControls({ customers, onUpdated }: AdminS
         <div className="field-group">
           <label htmlFor="suspension-reason">Reason for suspension</label>
           <textarea id="suspension-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="State why this account is suspended" />
+          <small className="field-help">Keep your line breaks. Wrap words in **double stars** to show them in bold.</small>
         </div>
 
         {selectedCustomer?.suspended ? (
