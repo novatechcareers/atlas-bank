@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         apikey: SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
       },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
@@ -60,6 +61,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
+    const profileType = body.profileType;
+    const winRate = Number(body.winRate);
+    const lossRate = Number(body.lossRate);
+    const minProfit = Number(body.minProfit);
+    const maxLoss = Number(body.maxLoss);
+    if (
+      !['conservative', 'balanced', 'aggressive'].includes(profileType) ||
+      ![winRate, lossRate, minProfit, maxLoss].every(Number.isFinite) ||
+      winRate < 0 || winRate > 100 ||
+      lossRate < 0 || lossRate > 100 ||
+      Math.round((winRate + lossRate) * 100) / 100 !== 100 ||
+      minProfit < 0 || minProfit > 1000 ||
+      maxLoss < 0 || maxLoss > 1000
+    ) {
+      return NextResponse.json({ error: 'Invalid trading profile values.' }, { status: 400 });
+    }
+
     const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -70,10 +88,10 @@ export async function PATCH(request: Request) {
           id: body.id || 'local-profile-1',
           user_id: userId,
           profile_type: body.profileType || 'balanced',
-          win_rate: body.winRate || 45,
-          loss_rate: body.lossRate || 55,
-          min_profit: body.minProfit || 10,
-          max_loss: body.maxLoss || 50,
+          win_rate: body.winRate ?? 45,
+          loss_rate: body.lossRate ?? 55,
+          min_profit: body.minProfit ?? 10,
+          max_loss: body.maxLoss ?? 50,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -82,23 +100,25 @@ export async function PATCH(request: Request) {
 
     const updateData = {
       profile_type: body.profileType,
-      win_rate: body.winRate,
-      loss_rate: body.lossRate,
-      min_profit: body.minProfit,
-      max_loss: body.maxLoss,
+      win_rate: winRate,
+      loss_rate: lossRate,
+      min_profit: minProfit,
+      max_loss: maxLoss,
       updated_at: new Date().toISOString(),
     };
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/trading_profiles?user_id=eq.${userId}`,
+      `${SUPABASE_URL}/rest/v1/trading_profiles?on_conflict=user_id`,
       {
-        method: 'PATCH',
+        method: 'POST',
         headers: {
           apikey: SERVICE_ROLE_KEY,
           Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
           'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates,return=representation',
         },
-        body: JSON.stringify(updateData),
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({ user_id: userId, ...updateData }),
       }
     );
 

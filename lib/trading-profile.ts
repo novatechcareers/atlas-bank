@@ -145,6 +145,16 @@ export function calculateTradeResult(profile: TradingProfile): number {
   }
 }
 
+export function calculateProfileClosePnl(grossPnl: number, profile: TradingProfile | null): number {
+  const magnitude = Math.max(0.1, Math.abs(grossPnl));
+  if (!profile) return Math.round(grossPnl * 100) / 100;
+
+  const isWin = Math.random() * 100 < profile.winRate;
+  const limit = isWin ? profile.minProfit : profile.maxLoss;
+  const adjusted = Math.min(magnitude, Math.max(0.1, limit));
+  return Math.round((isWin ? adjusted : -adjusted) * 100) / 100;
+}
+
 // Get default profile for new users
 export function getDefaultProfile(userId: string, profileType: ProfileType = 'balanced'): TradingProfile {
   const defaults = DEFAULT_PROFILES[profileType];

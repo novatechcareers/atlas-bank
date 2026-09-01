@@ -4,7 +4,6 @@ import Script from 'next/script';
 import { useEffect, useRef } from 'react';
 import { useLanguage } from './language-provider';
 import { usePathname } from 'next/navigation';
-import { getCurrentAccountId } from '@/lib/auth';
 
 declare global {
   interface Window {
@@ -25,47 +24,19 @@ function applyGoogleTranslateCookie(language: 'en' | 'pt-BR') {
   document.cookie = `googtrans=${encodeURIComponent(value)}; path=/; domain=${window.location.hostname}; SameSite=Lax`;
 }
 
-async function syncLanguageToDatabase(userId: string | null, language: 'en' | 'pt-BR') {
-  if (!userId) return;
-  try {
-    await fetch(`/api/language-preference?userId=${encodeURIComponent(userId)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ language }),
-    });
-  } catch (err) {
-    console.error('Failed to sync language to database:', err);
-  }
-}
+function applyGoogleTranslateLanguage(language: 'en' | 'pt-BR') {
+  const select = document.querySelector<HTMLSelectElement>('.goog-te-combo');
+  if (!select) return;
 
-function reinitializeGoogleTranslate() {
-  // Trigger Google Translate to re-scan and translate new page content
-  if (window.google?.translate?.TranslateElement) {
-    const widget = document.getElementById('google_translate_element');
-    if (widget) {
-      widget.innerHTML = '';
-      new window.google.translate.TranslateElement(
-        { pageLanguage: 'en', includedLanguages: 'en,pt', autoDisplay: false },
-        'google_translate_element',
-      );
-    }
-    
-    // Force Google Translate to re-process the page
-    if ('__google_translate_config' in window) {
-      (window as any).__google_translate_config?.widget_float?.floatPosition();
-    }
-  }
+  const target = language === 'pt-BR' ? 'pt' : 'en';
+  if (select.value !== target) select.value = target;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 export function GoogleTranslateBridge() {
   const { language } = useLanguage();
   const pathname = usePathname();
   const scriptLoadedRef = useRef(false);
-  const userIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    userIdRef.current = getCurrentAccountId();
-  }, []);
 
   useEffect(() => {
     window.googleTranslateElementInit = () => {
@@ -82,24 +53,19 @@ export function GoogleTranslateBridge() {
     };
 
     applyGoogleTranslateCookie(language);
-    
-    // Sync language to database
-    const target = language === 'pt-BR' ? 'pt-BR' : 'en';
-    void syncLanguageToDatabase(userIdRef.current, target as 'en' | 'pt-BR');
-    
     window.googleTranslateElementInit?.();
+    const timer = window.setTimeout(() => applyGoogleTranslateLanguage(language), 250);
+    return () => window.clearTimeout(timer);
   }, [language]);
 
   // Reinitialize Google Translate when pathname changes (page navigation)
   useEffect(() => {
     if (scriptLoadedRef.current) {
       // Add a small delay to ensure DOM content is fully loaded
-      const timer = setTimeout(() => {
-        reinitializeGoogleTranslate();
-      }, 100);
+      const timer = setTimeout(() => applyGoogleTranslateLanguage(language), 350);
       return () => clearTimeout(timer);
     }
-  }, [pathname]);
+  }, [language, pathname]);
 
   return (
     <>
@@ -110,9 +76,8 @@ export function GoogleTranslateBridge() {
         onLoad={() => {
           scriptLoadedRef.current = true;
           applyGoogleTranslateCookie(language);
-          const target = language === 'pt-BR' ? 'pt-BR' : 'en';
-          void syncLanguageToDatabase(userIdRef.current, target as 'en' | 'pt-BR');
           window.googleTranslateElementInit?.();
+          window.setTimeout(() => applyGoogleTranslateLanguage(language), 250);
         }}
       />
     </>

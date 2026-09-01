@@ -30,6 +30,7 @@ export async function GET(request: Request) {
         apikey: SERVICE_ROLE_KEY,
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
       },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
@@ -85,7 +86,9 @@ export async function PATCH(request: Request) {
           apikey: SERVICE_ROLE_KEY,
           Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
           'Content-Type': 'application/json',
+          Prefer: 'return=representation',
         },
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify(updateData),
       }
     );
@@ -100,7 +103,9 @@ export async function PATCH(request: Request) {
             apikey: SERVICE_ROLE_KEY,
             Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
             'Content-Type': 'application/json',
+            Prefer: 'return=representation',
           },
+          signal: AbortSignal.timeout(8000),
           body: JSON.stringify({
             user_id: userId,
             language: body.language,
@@ -112,17 +117,44 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Failed to update language preference' }, { status: 500 });
       }
 
-      const created = await createResponse.json();
+      const createdText = await createResponse.text();
+      const created = createdText ? JSON.parse(createdText) : null;
       const preference = Array.isArray(created) ? created[0] : created;
       return NextResponse.json({ preference });
     }
 
-    const updated = await response.json();
+    const updatedText = await response.text();
+    const updated = updatedText ? JSON.parse(updatedText) : null;
     const preference = Array.isArray(updated) ? updated[0] : updated;
+
+    if (!preference) {
+      const createResponse = await fetch(`${SUPABASE_URL}/rest/v1/language_preferences`, {
+        method: 'POST',
+        headers: {
+          apikey: SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation',
+        },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({ user_id: userId, language: body.language }),
+      });
+
+      if (!createResponse.ok) {
+        return NextResponse.json({ error: 'Failed to create language preference' }, { status: 500 });
+      }
+
+      const createdText = await createResponse.text();
+      const created = createdText ? JSON.parse(createdText) : null;
+      return NextResponse.json({ preference: Array.isArray(created) ? created[0] : created });
+    }
 
     return NextResponse.json({ preference });
   } catch (error) {
     console.error('Failed to update language preference:', error);
-    return NextResponse.json({ error: 'Failed to update preference' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Supabase is temporarily unreachable. Preference was kept locally.', retryable: true },
+      { status: 503 }
+    );
   }
 }

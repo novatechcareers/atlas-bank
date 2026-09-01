@@ -17,6 +17,7 @@ import {
   getTradingProfile,
   subscribeToTradingProfile,
   syncTradingProfileFromServer,
+  calculateProfileClosePnl,
   type TradingProfile,
 } from '@/lib/trading-profile';
 
@@ -24,6 +25,7 @@ export function LiveTradeEngine() {
   useEffect(() => {
     let engineInterval: number | null = null;
     let marketPriceInterval: number | null = null;
+    let marketRefreshInterval: number | null = null;
     let storageHandler: ((event: StorageEvent) => void) | null = null;
     let started = false;
     let profile: TradingProfile | null = getTradingProfile();
@@ -38,31 +40,24 @@ export function LiveTradeEngine() {
         if (marketPrice > 0) setLiveTradePrice(marketPrice);
       };
 
+      const tickMarketPrice = () => {
+        const currentPrice = getLiveTradePrice();
+        const movement = (Math.random() - 0.5) * 0.0004;
+        setLiveTradePrice(Math.round(currentPrice * (1 + movement) * 100) / 100);
+      };
+
       const updatePosition = () => {
         const position = getLiveTradePosition(userId);
         if (!position) return;
 
         const price = getLiveTradePrice();
-        let pnl = calculateLiveTradePnl(position, price);
-
-        // Apply trading profile adjustments if available
-        if (profile) {
-          const shouldWin = Math.random() * 100 < profile.winRate;
-          if (shouldWin) {
-            // Winning trade - apply min profit adjustment
-            const winAdjustment = (Math.random() * profile.minProfit) / 100;
-            pnl = Math.abs(pnl) * (1 + winAdjustment);
-          } else {
-            // Losing trade - apply max loss adjustment
-            const lossAdjustment = (Math.random() * profile.maxLoss) / 100;
-            pnl = -Math.abs(pnl) * (1 + lossAdjustment);
-          }
-        }
+        const pnl = calculateLiveTradePnl(position, price);
 
         if (position.closeAt && Date.now() >= position.closeAt) {
           const executionFee = Math.round(position.amount * 0.0125 * 100) / 100;
           const slippage = Math.round(Math.abs(pnl) * Math.random() * 0.08 * 100) / 100;
-          const realizedPnl = Math.round((pnl - executionFee - slippage) * 100) / 100;
+          const profilePnl = calculateProfileClosePnl(pnl, profile);
+          const realizedPnl = Math.round((profilePnl - executionFee - slippage) * 100) / 100;
           void adjustBalanceFromServer(realizedPnl, userId).then((nextBalance) => {
             if (nextBalance === null) return;
             addLiveTradeHistoryEntry({
@@ -96,6 +91,10 @@ export function LiveTradeEngine() {
       }, 2500) as unknown as number;
 
       marketPriceInterval = window.setInterval(() => {
+        tickMarketPrice();
+      }, 1_500) as unknown as number;
+
+      marketRefreshInterval = window.setInterval(() => {
         void syncMarketPrice();
       }, 15_000) as unknown as number;
 
@@ -139,6 +138,7 @@ export function LiveTradeEngine() {
     return () => {
       if (engineInterval) window.clearInterval(engineInterval);
       if (marketPriceInterval) window.clearInterval(marketPriceInterval);
+      if (marketRefreshInterval) window.clearInterval(marketRefreshInterval);
       if (storageHandler) window.removeEventListener('storage', storageHandler);
       window.clearInterval(poll);
       window.clearInterval(profileSyncTimer);

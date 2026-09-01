@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { TradingProfile, ProfileType } from '@/lib/trading-profile';
-import { getTradingProfile, saveTradingProfile, DEFAULT_PROFILES } from '@/lib/trading-profile';
+import { getTradingProfile, saveTradingProfile, DEFAULT_PROFILES, syncTradingProfileFromServer, getDefaultProfile } from '@/lib/trading-profile';
 
 interface ProfileGaugeProps {
   userId: string | null;
@@ -13,11 +13,15 @@ interface ProfileGaugeProps {
 export function ProfileGauge({ userId, onProfileChange, editable = false }: ProfileGaugeProps) {
   const [profile, setProfile] = useState<TradingProfile | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showAdjustments, setShowAdjustments] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
-    const stored = getTradingProfile(userId);
+    const stored = getTradingProfile(userId) ?? getDefaultProfile(userId);
     setProfile(stored);
+    void syncTradingProfileFromServer(userId).then((latest) => {
+      if (latest) setProfile(latest);
+    });
   }, [userId]);
 
   const handleProfileTypeChange = async (newType: ProfileType) => {
@@ -28,13 +32,12 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
       const defaults = DEFAULT_PROFILES[newType];
       const updated: TradingProfile = {
         ...profile,
-        profileType: newType,
         ...defaults,
         updatedAt: Date.now(),
       };
 
       // Update in database
-      await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
+      const response = await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -46,6 +49,7 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
           maxLoss: defaults.maxLoss,
         }),
       });
+      if (!response.ok) throw new Error('Unable to save trading profile.');
 
       setProfile(updated);
       saveTradingProfile(updated, userId);
@@ -62,24 +66,31 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
     setIsUpdating(true);
 
     try {
+      const nextWinRate = field === 'winRate' ? Math.min(100, Math.max(0, value)) : profile.winRate;
+      const nextLossRate = field === 'lossRate' ? Math.min(100, Math.max(0, value)) : profile.lossRate;
       const updated: TradingProfile = {
         ...profile,
         [field]: value,
+        winRate: field === 'winRate' ? nextWinRate : 100 - nextLossRate,
+        lossRate: field === 'lossRate' ? nextLossRate : 100 - nextWinRate,
+        minProfit: field === 'minProfit' ? Math.min(1000, Math.max(0, value)) : profile.minProfit,
+        maxLoss: field === 'maxLoss' ? Math.min(1000, Math.max(0, value)) : profile.maxLoss,
         updatedAt: Date.now(),
       };
 
-      await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
+      const response = await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: profile.id,
           profileType: profile.profileType,
-          winRate: field === 'winRate' ? value : profile.winRate,
-          lossRate: field === 'lossRate' ? value : profile.lossRate,
-          minProfit: field === 'minProfit' ? value : profile.minProfit,
-          maxLoss: field === 'maxLoss' ? value : profile.maxLoss,
+          winRate: updated.winRate,
+          lossRate: updated.lossRate,
+          minProfit: updated.minProfit,
+          maxLoss: updated.maxLoss,
         }),
       });
+      if (!response.ok) throw new Error('Unable to save trading profile value.');
 
       setProfile(updated);
       saveTradingProfile(updated, userId);
@@ -102,7 +113,15 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
       
       {/* Profile Type Selector */}
       {editable && (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowAdjustments((visible) => !visible)}
+            className="rounded-lg border border-[color:var(--primary-gold)]/50 px-3 py-2 text-sm font-semibold text-[color:var(--primary-gold)]"
+          >
+            {showAdjustments ? 'Hide adjustments' : 'Adjust profit and loss'}
+          </button>
+        {showAdjustments && <div className="mt-3 flex gap-2">
           {(Object.keys(DEFAULT_PROFILES) as ProfileType[]).map((type) => (
             <button
               key={type}
@@ -117,6 +136,7 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
               {type.charAt(0).toUpperCase() + type.slice(1)}
             </button>
           ))}
+        </div>}
         </div>
       )}
 
@@ -182,6 +202,7 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
               <input
                 type="number"
                 min="0"
+                max="1000"
                 step="5"
                 value={profile.minProfit}
                 onChange={(e) => handleValueChange('minProfit', Number(e.target.value))}
@@ -198,6 +219,7 @@ export function ProfileGauge({ userId, onProfileChange, editable = false }: Prof
               <input
                 type="number"
                 min="0"
+                max="1000"
                 step="5"
                 value={profile.maxLoss}
                 onChange={(e) => handleValueChange('maxLoss', Number(e.target.value))}

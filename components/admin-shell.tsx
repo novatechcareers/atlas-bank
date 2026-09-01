@@ -12,6 +12,7 @@ import { getSupabase } from '@/lib/supabase';
 import { LanguageSelector } from './language-selector';
 import { useLanguage } from './language-provider';
 import { translatePageText } from '@/lib/i18n';
+import { CustomerCareButton } from './customer-care-button';
 
 const links = [
   { href: '/admin', label: 'Home', icon: '🏠' },
@@ -290,6 +291,9 @@ export function AdminShell({ title, subtitle, children }: { title: string; subti
           </header>
 
           {children}
+          <div className="mt-8 flex justify-end border-t border-[color:var(--border-soft)] pt-5">
+            <CustomerCareButton />
+          </div>
         </main>
       </div>
     </div>

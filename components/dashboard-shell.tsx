@@ -12,6 +12,7 @@ import { formatLocalizedCurrency, translatePageText } from '@/lib/i18n';
 import { LanguageSelector } from './language-selector';
 import { useLanguage } from './language-provider';
 import { useEffect, useMemo, useState } from 'react';
+import { CustomerCareButton } from './customer-care-button';
 
 const links = [
   { href: '/dashboard', label: 'Dashboard', icon: '⌂' },
@@ -159,6 +160,9 @@ export function DashboardShell({
           </header>
 
           {children}
+          <div className="mt-8 flex justify-end border-t border-[color:var(--border-soft)] pt-5">
+            <CustomerCareButton />
+          </div>
         </main>
       </div>
     </div>

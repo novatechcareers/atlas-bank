@@ -8,7 +8,7 @@ import {
   type AutoTradePurchase,
   subscribeToAutoTrade,
   resetAutoTrade,
-  updateAutoTradeStatus,
+  saveAutoTradePurchase,
 } from '@/lib/auto-trade';
 import { getSelectedAdminUserId } from '@/lib/auth';
 import { formatCurrency } from '@/lib/balance';
@@ -71,7 +71,7 @@ export default function AdminAutoTradePage() {
     setIsUpdating(true);
     try {
       // Update in database
-      const response = await fetch(`/api/admin/auto-trade/${purchase.id}`, {
+      const response = await fetch(`/api/admin/auto-trade/${encodeURIComponent(String(purchase.id))}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -88,6 +88,15 @@ export default function AdminAutoTradePage() {
           updatedAt: updated.updatedAt,
           activatedAt: updated.activatedAt,
         });
+        saveAutoTradePurchase({
+          id: updated.id,
+          planName: updated.planName,
+          price: Number(updated.price),
+          status: updated.status,
+          createdAt: updated.createdAt,
+          updatedAt: updated.updatedAt,
+          activatedAt: updated.activatedAt,
+        }, selectedUserId);
         setMessage(text);
       } else {
         setMessage('Failed to update auto-trade status.');

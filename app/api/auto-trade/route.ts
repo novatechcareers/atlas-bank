@@ -19,6 +19,9 @@ export async function GET(req: Request) {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(4000) }),
+      },
     });
 
     const { data, error } = await supabase
@@ -43,7 +46,8 @@ export async function GET(req: Request) {
       activatedAt: data.activated_at ? new Date(data.activated_at).getTime() : undefined,
     } : null }, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Unable to load auto trade purchase.' }, { status: 500 });
+    console.error('[auto-trade GET] Error:', error);
+    return NextResponse.json({ error: 'Auto-trade database is temporarily unreachable.', retryable: true }, { status: 503 });
   }
 }
 
@@ -65,6 +69,9 @@ export async function POST(req: Request) {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(4000) }),
+      },
     });
 
     const { error: balanceError } = await supabase.rpc('adjust_user_balance', {
@@ -100,6 +107,7 @@ export async function POST(req: Request) {
       activatedAt: data.activated_at ? new Date(data.activated_at).getTime() : undefined,
     } }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Unable to create auto trade purchase.' }, { status: 500 });
+    console.error('[auto-trade POST] Error:', error);
+    return NextResponse.json({ error: 'Auto-trade database is temporarily unreachable.', retryable: true }, { status: 503 });
   }
 }

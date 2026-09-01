@@ -109,7 +109,14 @@ export function getAutoTradeHistory(userId?: string | null): AutoTradeHistoryEnt
   if (!stored) return [];
 
   try {
-    return JSON.parse(stored) as AutoTradeHistoryEntry[];
+    const entries = JSON.parse(stored) as AutoTradeHistoryEntry[];
+    const seenIds = new Set<string>();
+    return entries.filter((entry) => {
+      const id = String(entry.id);
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
   } catch {
     window.localStorage.removeItem(storageKey);
     return [];

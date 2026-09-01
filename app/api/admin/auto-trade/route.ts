@@ -15,6 +15,9 @@ export async function GET(req: Request) {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(4000) }),
+      },
     });
 
     let query = supabase.from('auto_trade_purchases').select('*').order('created_at', { ascending: false });
@@ -29,6 +32,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ purchases: data ?? [] }, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json({ error: error?.message || 'Unable to load auto-trade review list.' }, { status: 500 });
+    console.error('[admin auto-trade GET] Error:', error);
+    return NextResponse.json({ error: 'Auto-trade database is temporarily unreachable.', retryable: true }, { status: 503 });
   }
 }

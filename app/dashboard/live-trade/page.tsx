@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
-import { ProfileGauge } from '@/components/profile-gauge';
 import { getCurrentAccountId } from '@/lib/auth';
+import { calculateProfileClosePnl, getTradingProfile } from '@/lib/trading-profile';
 import {
   adjustBalanceFromServer,
   formatCurrency,
@@ -130,7 +130,8 @@ export default function LiveTradePage() {
     const grossPnl = Math.round(unrealizedPnl * 100) / 100;
     const executionFee = Math.round(position.amount * 0.0125 * 100) / 100;
     const slippage = Math.round(Math.abs(grossPnl) * Math.random() * 0.08 * 100) / 100;
-    const profit = Math.round((grossPnl - executionFee - slippage) * 100) / 100;
+    const profilePnl = calculateProfileClosePnl(grossPnl, getTradingProfile(userId));
+    const profit = Math.round((profilePnl - executionFee - slippage) * 100) / 100;
     void adjustBalanceFromServer(profit, userId);
 
     const entry: LiveTradeHistoryEntry = {
@@ -155,9 +156,6 @@ export default function LiveTradePage() {
   return (
     <DashboardShell title="Live Trade" subtitle="Monitor market activity and trade with your account balance using live market pricing.">
       <div className="space-y-6">
-        {/* Trading Profile Gauge */}
-        <ProfileGauge userId={getCurrentAccountId()} editable={false} />
-
         <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>

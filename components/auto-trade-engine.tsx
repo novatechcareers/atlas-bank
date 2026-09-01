@@ -52,9 +52,7 @@ export function AutoTradeEngine() {
       };
 
       addAutoTradeHistoryEntry(entry);
-      void adjustBalanceFromServer(result).then((nextBalance) => {
-        if (nextBalance !== null) addAutoTradeHistoryEntry(entry);
-      });
+      void adjustBalanceFromServer(result);
     };
 
     const unsubscribe = subscribeToAutoTrade((nextPurchase) => {

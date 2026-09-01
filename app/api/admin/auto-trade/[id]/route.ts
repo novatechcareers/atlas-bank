@@ -20,6 +20,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(4000) }),
+      },
     });
 
     const updateData: Record<string, any> = {
@@ -70,6 +73,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(4000) }),
+      },
     });
     const { error } = await supabase.from('auto_trade_purchases').delete().eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -12,19 +12,6 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-function applyGoogleTranslate(language: Language) {
-  const target = language === 'pt-BR' ? 'pt' : 'en';
-  const value = `/en/${target}`;
-
-  document.cookie = `googtrans=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
-  document.cookie = `googtrans=${encodeURIComponent(value)}; path=/; domain=${window.location.hostname}; SameSite=Lax`;
-
-  const script = document.querySelector('script[src*="translate_a/element.js"]');
-  if (script && 'google' in window && window.google?.translate?.TranslateElement) {
-    window.location.reload();
-  }
-}
-
 async function syncLanguageToDatabase(userId: string | null, language: Language) {
   if (!userId) return;
   try {
@@ -68,7 +55,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       if (dbLanguage) {
         setLanguageState(dbLanguage);
         document.documentElement.lang = dbLanguage === 'pt-BR' ? 'pt-BR' : 'en';
-        applyGoogleTranslate(dbLanguage);
         return;
       }
 
@@ -100,8 +86,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const userId = getCurrentAccountId();
       void syncLanguageToDatabase(userId, nextLanguage);
       
-      applyGoogleTranslate(nextLanguage);
-      window.location.reload();
+      document.documentElement.lang = nextLanguage === 'pt-BR' ? 'pt-BR' : 'en';
     },
     t: (key) => translate(language, key),
   }), [language]);
