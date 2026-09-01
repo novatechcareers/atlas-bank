@@ -258,6 +258,10 @@ export function AdminShell({ title, subtitle, children }: { title: string; subti
             })}
           </nav>
 
+          <div className="mt-6">
+            <CustomerCareButton />
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -278,6 +282,7 @@ export function AdminShell({ title, subtitle, children }: { title: string; subti
               <p className="mt-1 text-sm text-[color:var(--text-secondary)]">{translatePageText(language, subtitle)}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <CustomerCareButton />
               <LanguageSelector />
               <div className="rounded-2xl border border-[color:var(--border-soft)] bg-[color:var(--surface)] px-4 py-2 text-sm text-[color:var(--text-secondary)]">
                 <span className="font-semibold text-[color:var(--text-primary)]">{t('adminConsole')}</span>
@@ -291,9 +296,6 @@ export function AdminShell({ title, subtitle, children }: { title: string; subti
           </header>
 
           {children}
-          <div className="mt-8 flex justify-end border-t border-[color:var(--border-soft)] pt-5">
-            <CustomerCareButton />
-          </div>
         </main>
       </div>
     </div>
