@@ -1,0 +1,213 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import type { TradingProfile, ProfileType } from '@/lib/trading-profile';
+import { getTradingProfile, saveTradingProfile, DEFAULT_PROFILES } from '@/lib/trading-profile';
+
+interface ProfileGaugeProps {
+  userId: string | null;
+  onProfileChange?: (profile: TradingProfile) => void;
+  editable?: boolean;
+}
+
+export function ProfileGauge({ userId, onProfileChange, editable = false }: ProfileGaugeProps) {
+  const [profile, setProfile] = useState<TradingProfile | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    const stored = getTradingProfile(userId);
+    setProfile(stored);
+  }, [userId]);
+
+  const handleProfileTypeChange = async (newType: ProfileType) => {
+    if (!userId || !profile || isUpdating) return;
+    setIsUpdating(true);
+
+    try {
+      const defaults = DEFAULT_PROFILES[newType];
+      const updated: TradingProfile = {
+        ...profile,
+        profileType: newType,
+        ...defaults,
+        updatedAt: Date.now(),
+      };
+
+      // Update in database
+      await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: profile.id,
+          profileType: newType,
+          winRate: defaults.winRate,
+          lossRate: defaults.lossRate,
+          minProfit: defaults.minProfit,
+          maxLoss: defaults.maxLoss,
+        }),
+      });
+
+      setProfile(updated);
+      saveTradingProfile(updated, userId);
+      onProfileChange?.(updated);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleValueChange = async (field: keyof Pick<TradingProfile, 'winRate' | 'lossRate' | 'minProfit' | 'maxLoss'>, value: number) => {
+    if (!userId || !profile || isUpdating) return;
+    setIsUpdating(true);
+
+    try {
+      const updated: TradingProfile = {
+        ...profile,
+        [field]: value,
+        updatedAt: Date.now(),
+      };
+
+      await fetch(`/api/trading-profile?userId=${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: profile.id,
+          profileType: profile.profileType,
+          winRate: field === 'winRate' ? value : profile.winRate,
+          lossRate: field === 'lossRate' ? value : profile.lossRate,
+          minProfit: field === 'minProfit' ? value : profile.minProfit,
+          maxLoss: field === 'maxLoss' ? value : profile.maxLoss,
+        }),
+      });
+
+      setProfile(updated);
+      saveTradingProfile(updated, userId);
+      onProfileChange?.(updated);
+    } catch (err) {
+      console.error('Failed to update value:', err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (!profile) return null;
+
+  const winPercentage = profile.winRate;
+  const lossPercentage = profile.lossRate;
+
+  return (
+    <div className="rounded-3xl border border-[color:var(--primary-gold)]/20 bg-[color:var(--surface-elevated)] p-6">
+      <p className="text-sm uppercase tracking-[0.3em] text-[color:var(--primary-gold)]">Trading Profile</p>
+      
+      {/* Profile Type Selector */}
+      {editable && (
+        <div className="mt-4 flex gap-2">
+          {(Object.keys(DEFAULT_PROFILES) as ProfileType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => handleProfileTypeChange(type)}
+              disabled={isUpdating}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                profile.profileType === type
+                  ? 'bg-[color:var(--primary-gold)] text-[color:var(--bg-dark-navy)]'
+                  : 'border border-[color:var(--border-soft)] text-[color:var(--text-secondary)] hover:border-[color:var(--primary-gold)]'
+              } ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Win/Loss Gauge */}
+      <div className="mt-6 space-y-4">
+        <div>
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[color:var(--text-secondary)]">Win Rate</span>
+            <span className="text-[color:var(--primary-gold)]">{winPercentage.toFixed(2)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+            <div
+              className="h-full bg-green-500 transition-all duration-300"
+              style={{ width: `${winPercentage}%` }}
+            />
+          </div>
+          {editable && (
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={winPercentage}
+              onChange={(e) => handleValueChange('winRate', Number(e.target.value))}
+              disabled={isUpdating}
+              className="w-full mt-2"
+            />
+          )}
+        </div>
+
+        <div>
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-[color:var(--text-secondary)]">Loss Rate</span>
+            <span className="text-red-400">{lossPercentage.toFixed(2)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-slate-700 overflow-hidden">
+            <div
+              className="h-full bg-red-500 transition-all duration-300"
+              style={{ width: `${lossPercentage}%` }}
+            />
+          </div>
+          {editable && (
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={lossPercentage}
+              onChange={(e) => handleValueChange('lossRate', Number(e.target.value))}
+              disabled={isUpdating}
+              className="w-full mt-2"
+            />
+          )}
+        </div>
+
+        {editable && (
+          <>
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-[color:var(--text-secondary)]">Min Profit</span>
+                <span>${profile.minProfit.toFixed(2)}</span>
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="5"
+                value={profile.minProfit}
+                onChange={(e) => handleValueChange('minProfit', Number(e.target.value))}
+                disabled={isUpdating}
+                className="w-full px-3 py-2 rounded-lg bg-[color:var(--bg-dark-navy)] border border-[color:var(--border-soft)] text-[color:var(--text-primary)]"
+              />
+            </div>
+
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-[color:var(--text-secondary)]">Max Loss</span>
+                <span>${profile.maxLoss.toFixed(2)}</span>
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="5"
+                value={profile.maxLoss}
+                onChange={(e) => handleValueChange('maxLoss', Number(e.target.value))}
+                disabled={isUpdating}
+                className="w-full px-3 py-2 rounded-lg bg-[color:var(--bg-dark-navy)] border border-[color:var(--border-soft)] text-[color:var(--text-primary)]"
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

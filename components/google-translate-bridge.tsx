@@ -4,6 +4,7 @@ import Script from 'next/script';
 import { useEffect, useRef } from 'react';
 import { useLanguage } from './language-provider';
 import { usePathname } from 'next/navigation';
+import { getCurrentAccountId } from '@/lib/auth';
 
 declare global {
   interface Window {
@@ -22,6 +23,19 @@ function applyGoogleTranslateCookie(language: 'en' | 'pt-BR') {
 
   document.cookie = `googtrans=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
   document.cookie = `googtrans=${encodeURIComponent(value)}; path=/; domain=${window.location.hostname}; SameSite=Lax`;
+}
+
+async function syncLanguageToDatabase(userId: string | null, language: 'en' | 'pt-BR') {
+  if (!userId) return;
+  try {
+    await fetch(`/api/language-preference?userId=${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    });
+  } catch (err) {
+    console.error('Failed to sync language to database:', err);
+  }
 }
 
 function reinitializeGoogleTranslate() {
@@ -47,6 +61,11 @@ export function GoogleTranslateBridge() {
   const { language } = useLanguage();
   const pathname = usePathname();
   const scriptLoadedRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    userIdRef.current = getCurrentAccountId();
+  }, []);
 
   useEffect(() => {
     window.googleTranslateElementInit = () => {
@@ -63,6 +82,11 @@ export function GoogleTranslateBridge() {
     };
 
     applyGoogleTranslateCookie(language);
+    
+    // Sync language to database
+    const target = language === 'pt-BR' ? 'pt-BR' : 'en';
+    void syncLanguageToDatabase(userIdRef.current, target as 'en' | 'pt-BR');
+    
     window.googleTranslateElementInit?.();
   }, [language]);
 
@@ -86,6 +110,8 @@ export function GoogleTranslateBridge() {
         onLoad={() => {
           scriptLoadedRef.current = true;
           applyGoogleTranslateCookie(language);
+          const target = language === 'pt-BR' ? 'pt-BR' : 'en';
+          void syncLanguageToDatabase(userIdRef.current, target as 'en' | 'pt-BR');
           window.googleTranslateElementInit?.();
         }}
       />

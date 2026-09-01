@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getStoredLanguage, markLanguageHydrated, setStoredLanguage, translate, type Language, type TranslationKey } from '@/lib/i18n';
+import { getCurrentAccountId } from '@/lib/auth';
 
 type LanguageContextValue = {
   language: Language;
@@ -24,20 +25,68 @@ function applyGoogleTranslate(language: Language) {
   }
 }
 
+async function syncLanguageToDatabase(userId: string | null, language: Language) {
+  if (!userId) return;
+  try {
+    await fetch(`/api/language-preference?userId=${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    });
+  } catch (err) {
+    console.error('Failed to sync language to database:', err);
+  }
+}
+
+async function loadLanguageFromDatabase(userId: string | null): Promise<Language | null> {
+  if (!userId) return null;
+  try {
+    const response = await fetch(`/api/language-preference?userId=${encodeURIComponent(userId)}`);
+    if (response.ok) {
+      const data = await response.json();
+      const preference = data?.preference;
+      if (preference?.language) {
+        return preference.language === 'pt-BR' ? 'pt-BR' : 'en';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load language from database:', err);
+  }
+  return null;
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
   useEffect(() => {
     markLanguageHydrated();
-    const storedLanguage = window.localStorage.getItem('atlas-language') === 'pt-BR' ? 'pt-BR' : getStoredLanguage();
-    const timer = window.setTimeout(() => {
+    const userId = getCurrentAccountId();
+
+    const initializeLanguage = async () => {
+      // Try to load from database first
+      const dbLanguage = await loadLanguageFromDatabase(userId);
+      if (dbLanguage) {
+        setLanguageState(dbLanguage);
+        document.documentElement.lang = dbLanguage === 'pt-BR' ? 'pt-BR' : 'en';
+        applyGoogleTranslate(dbLanguage);
+        return;
+      }
+
+      // Fall back to localStorage
+      const storedLanguage = window.localStorage.getItem('atlas-language') === 'pt-BR' ? 'pt-BR' : getStoredLanguage();
       setLanguageState(storedLanguage);
       document.documentElement.lang = storedLanguage === 'pt-BR' ? 'pt-BR' : 'en';
-      const googleCookie = document.cookie.includes('googtrans=');
-      if (googleCookie && storedLanguage === 'pt-BR') {
-        document.cookie = 'googtrans=/en/pt; path=/; SameSite=Lax';
+      
+      // Sync localStorage to database
+      if (userId) {
+        void syncLanguageToDatabase(userId, storedLanguage);
       }
+    };
+
+    const timer = window.setTimeout(() => {
+      void initializeLanguage();
     }, 0);
+
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -46,6 +95,11 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setLanguage: (nextLanguage) => {
       setLanguageState(nextLanguage);
       setStoredLanguage(nextLanguage);
+      
+      // Sync to database
+      const userId = getCurrentAccountId();
+      void syncLanguageToDatabase(userId, nextLanguage);
+      
       applyGoogleTranslate(nextLanguage);
       window.location.reload();
     },

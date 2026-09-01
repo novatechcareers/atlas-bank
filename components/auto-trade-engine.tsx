@@ -11,17 +11,38 @@ import {
   type AutoTradeHistoryEntry,
   type AutoTradePurchase,
 } from '@/lib/auto-trade';
+import {
+  getTradingProfile,
+  subscribeToTradingProfile,
+  syncTradingProfileFromServer,
+  calculateTradeResult,
+  getDefaultProfile,
+  type TradingProfile,
+} from '@/lib/trading-profile';
 
 const assets = ['BTC/USD', 'ETH/USD', 'EUR/USD', 'SOL/USD'];
 
 export function AutoTradeEngine() {
   useEffect(() => {
     let purchase: AutoTradePurchase | null = getAutoTradePurchase();
+    let profile: TradingProfile | null = getTradingProfile();
+    const userId = getCurrentAccountId();
 
     const createTrade = () => {
       if (purchase?.status !== 'Running') return;
 
-      const result = Math.round((Math.random() * 6 - 3) * 100) / 100;
+      // Use profile if available, otherwise calculate with default 55/45 loss/profit
+      let result: number;
+      if (profile) {
+        result = calculateTradeResult(profile);
+      } else {
+        // Fallback: 55% loss, 45% profit with default amounts
+        const isWin = Math.random() * 100 < 45;
+        result = isWin
+          ? Math.round((Math.random() * 10 + 0.1) * 100) / 100
+          : Math.round((Math.random() * -50 - 0.1) * 100) / 100;
+      }
+
       const now = Date.now();
       const entry: AutoTradeHistoryEntry = {
         id: now,
@@ -39,15 +60,25 @@ export function AutoTradeEngine() {
     const unsubscribe = subscribeToAutoTrade((nextPurchase) => {
       purchase = nextPurchase;
     });
+
+    const unsubscribeProfile = subscribeToTradingProfile((nextProfile) => {
+      profile = nextProfile;
+    }, userId);
+
     const syncTimer = window.setInterval(() => {
-      void syncAutoTradeFromServer(getCurrentAccountId()).then((nextPurchase) => {
+      void syncAutoTradeFromServer(userId).then((nextPurchase) => {
         purchase = nextPurchase;
       });
+      void syncTradingProfileFromServer(userId).then((nextProfile) => {
+        profile = nextProfile;
+      });
     }, 2000);
+
     const timer = window.setInterval(createTrade, 8000);
 
     return () => {
       unsubscribe();
+      unsubscribeProfile();
       window.clearInterval(syncTimer);
       window.clearInterval(timer);
     };

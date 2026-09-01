@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DashboardShell } from '@/components/dashboard-shell';
+import { ProfileGauge } from '@/components/profile-gauge';
 import { getCurrentAccountId } from '@/lib/auth';
 import {
   adjustBalanceFromServer,
@@ -154,6 +155,9 @@ export default function LiveTradePage() {
   return (
     <DashboardShell title="Live Trade" subtitle="Monitor market activity and trade with your account balance using live market pricing.">
       <div className="space-y-6">
+        {/* Trading Profile Gauge */}
+        <ProfileGauge userId={getCurrentAccountId()} editable={false} />
+
         <div className="rounded-3xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-black/20">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>

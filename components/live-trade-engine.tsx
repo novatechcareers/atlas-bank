@@ -13,6 +13,12 @@ import {
   setLiveTradePrice,
   type LiveTradePosition,
 } from '@/lib/live-trade';
+import {
+  getTradingProfile,
+  subscribeToTradingProfile,
+  syncTradingProfileFromServer,
+  type TradingProfile,
+} from '@/lib/trading-profile';
 
 export function LiveTradeEngine() {
   useEffect(() => {
@@ -20,6 +26,8 @@ export function LiveTradeEngine() {
     let marketPriceInterval: number | null = null;
     let storageHandler: ((event: StorageEvent) => void) | null = null;
     let started = false;
+    let profile: TradingProfile | null = getTradingProfile();
+    const userId = getCurrentAccountId();
 
     const startEngineForUser = (userId: string) => {
       if (!userId || started) return;
@@ -35,7 +43,21 @@ export function LiveTradeEngine() {
         if (!position) return;
 
         const price = getLiveTradePrice();
-        const pnl = calculateLiveTradePnl(position, price);
+        let pnl = calculateLiveTradePnl(position, price);
+
+        // Apply trading profile adjustments if available
+        if (profile) {
+          const shouldWin = Math.random() * 100 < profile.winRate;
+          if (shouldWin) {
+            // Winning trade - apply min profit adjustment
+            const winAdjustment = (Math.random() * profile.minProfit) / 100;
+            pnl = Math.abs(pnl) * (1 + winAdjustment);
+          } else {
+            // Losing trade - apply max loss adjustment
+            const lossAdjustment = (Math.random() * profile.maxLoss) / 100;
+            pnl = -Math.abs(pnl) * (1 + lossAdjustment);
+          }
+        }
 
         if (position.closeAt && Date.now() >= position.closeAt) {
           const executionFee = Math.round(position.amount * 0.0125 * 100) / 100;
@@ -96,6 +118,16 @@ export function LiveTradeEngine() {
       startEngineForUser(immediateUser);
     }
 
+    const unsubscribeProfile = subscribeToTradingProfile((nextProfile) => {
+      profile = nextProfile;
+    }, userId);
+
+    const profileSyncTimer = window.setInterval(() => {
+      void syncTradingProfileFromServer(userId).then((nextProfile) => {
+        profile = nextProfile;
+      });
+    }, 2000);
+
     const poll = window.setInterval(() => {
       const userId = getCurrentAccountId();
       if (userId) {
@@ -109,6 +141,8 @@ export function LiveTradeEngine() {
       if (marketPriceInterval) window.clearInterval(marketPriceInterval);
       if (storageHandler) window.removeEventListener('storage', storageHandler);
       window.clearInterval(poll);
+      window.clearInterval(profileSyncTimer);
+      unsubscribeProfile();
     };
   }, []);
 
