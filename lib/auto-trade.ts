@@ -13,7 +13,7 @@ export type AutoTradePurchase = {
 };
 
 export type AutoTradeHistoryEntry = {
-  id: number;
+  id: string;
   createdAt: number;
   asset: string;
   result: number;

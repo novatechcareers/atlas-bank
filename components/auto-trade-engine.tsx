@@ -45,7 +45,7 @@ export function AutoTradeEngine() {
 
       const now = Date.now();
       const entry: AutoTradeHistoryEntry = {
-        id: now,
+        id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
         createdAt: now,
         asset: assets[Math.floor(Math.random() * assets.length)],
         result,
