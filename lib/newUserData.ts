@@ -173,7 +173,6 @@ export async function saveNewUserCustomerToSupabase({
   fullName,
   email,
   phone,
-  password,
   accountNumber,
   status = "pending",
   createdAt = new Date().toISOString(),
@@ -181,7 +180,6 @@ export async function saveNewUserCustomerToSupabase({
   fullName: string;
   email: string;
   phone: string;
-  password?: string;
   accountNumber?: string;
   status?: string;
   createdAt?: string;
@@ -197,25 +195,10 @@ export async function saveNewUserCustomerToSupabase({
     status,
   };
 
-  if (password) {
-    row.password = password;
-  }
-
   const { error } = await supabase.from("customers").upsert([row], { onConflict: "email" });
 
   if (error) {
-    const missingPasswordColumn = /column\s+"password"\s+does not exist/i.test(error.message ?? "");
     const missingAccountNumberColumn = /column\s+"account_number"\s+does not exist/i.test(error.message ?? "");
-
-    if (password && missingPasswordColumn) {
-      const retryRow = { ...row };
-      delete retryRow.password;
-      const { error: retryError } = await supabase.from("customers").upsert([retryRow], { onConflict: "email" });
-      if (retryError) {
-        throw retryError;
-      }
-      return true;
-    }
 
     if (missingAccountNumberColumn) {
       const retryRow = { ...row };
