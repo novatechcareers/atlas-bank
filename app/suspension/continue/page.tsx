@@ -43,7 +43,7 @@ export default function SuspensionContinuePage() {
     void loadStatus();
     const channel = supabase?.channel("customer-account-details")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${customerEmail}` }, (payload) => {
-        const nextCustomer = payload.new as Record<string, unknown>;
+        const nextCustomer = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
         const details = nextCustomer.account_details;
         const reviewRequest = typeof nextCustomer.review_request === "string" ? nextCustomer.review_request : undefined;
         const hasAccountDetails = typeof details === "string" && details.trim().length > 0;

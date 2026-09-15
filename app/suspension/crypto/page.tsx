@@ -37,7 +37,7 @@ export default function CryptoPaymentPage() {
 
     const channel = supabase?.channel(`customer-crypto-details-${email}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${email}` }, (payload) => {
-        const updated = payload.new as Record<string, unknown>;
+        const updated = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
         const nextCryptoName = typeof updated.crypto_name === "string" ? updated.crypto_name : "";
         const nextAddress = typeof updated.crypto_address === "string" ? updated.crypto_address : "";
         const nextPaymentTime = typeof updated.crypto_payment_time === "string" ? updated.crypto_payment_time : "";

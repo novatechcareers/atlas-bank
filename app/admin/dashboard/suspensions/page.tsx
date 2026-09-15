@@ -56,26 +56,26 @@ export default function AdminSuspensionsPage() {
 
     const channel = supabase?.channel("admin-customer-review-requests")
       .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, (payload) => {
-        const updated = payload.new as Record<string, unknown> | undefined;
-        const email = String((updated ?? payload.old ?? {}).email ?? "").toLowerCase();
+        const source = (payload.new ?? payload.old ?? {}) as Record<string, unknown>;
+        const email = String(source.email ?? "").toLowerCase();
         if (!email) return;
 
         setCustomers((current) => {
           const existing = current.find((customer) => customer.email.toLowerCase() === email);
           const nextCustomer = {
-            email: String((updated ?? payload.old ?? {}).email ?? existing?.email ?? ""),
-            fullName: String((updated ?? payload.old ?? {}).full_name ?? existing?.fullName ?? "New Customer"),
-            phone: (updated ?? payload.old ?? {}).phone ? String((updated ?? payload.old ?? {}).phone) : existing?.phone,
-            accountNumber: (updated ?? payload.old ?? {}).account_number ? String((updated ?? payload.old ?? {}).account_number) : existing?.accountNumber,
-            suspended: (updated ?? payload.old ?? {}).suspended === true,
-            suspensionReason: (updated ?? payload.old ?? {}).suspension_reason ? String((updated ?? payload.old ?? {}).suspension_reason) : undefined,
-            reviewRequest: (updated ?? payload.old ?? {}).review_request ? String((updated ?? payload.old ?? {}).review_request) : undefined,
-            reviewRequestedAt: (updated ?? payload.old ?? {}).review_requested_at ? String((updated ?? payload.old ?? {}).review_requested_at) : undefined,
-            accountDetails: (updated ?? payload.old ?? {}).account_details ? String((updated ?? payload.old ?? {}).account_details) : undefined,
-            accountDetailsSentAt: (updated ?? payload.old ?? {}).account_details_sent_at ? String((updated ?? payload.old ?? {}).account_details_sent_at) : undefined,
-            cryptoName: (updated ?? payload.old ?? {}).crypto_name ? String((updated ?? payload.old ?? {}).crypto_name) : undefined,
-            cryptoAddress: (updated ?? payload.old ?? {}).crypto_address ? String((updated ?? payload.old ?? {}).crypto_address) : undefined,
-            cryptoPaymentTime: (updated ?? payload.old ?? {}).crypto_payment_time ? String((updated ?? payload.old ?? {}).crypto_payment_time) : undefined,
+            email: String(source.email ?? existing?.email ?? ""),
+            fullName: String(source.full_name ?? existing?.fullName ?? "New Customer"),
+            phone: source.phone ? String(source.phone) : existing?.phone,
+            accountNumber: source.account_number ? String(source.account_number) : existing?.accountNumber,
+            suspended: source.suspended === true,
+            suspensionReason: source.suspension_reason ? String(source.suspension_reason) : undefined,
+            reviewRequest: source.review_request ? String(source.review_request) : undefined,
+            reviewRequestedAt: source.review_requested_at ? String(source.review_requested_at) : undefined,
+            accountDetails: source.account_details ? String(source.account_details) : undefined,
+            accountDetailsSentAt: source.account_details_sent_at ? String(source.account_details_sent_at) : undefined,
+            cryptoName: source.crypto_name ? String(source.crypto_name) : undefined,
+            cryptoAddress: source.crypto_address ? String(source.crypto_address) : undefined,
+            cryptoPaymentTime: source.crypto_payment_time ? String(source.crypto_payment_time) : undefined,
           } satisfies CustomerSuspension;
 
           if (existing) {
