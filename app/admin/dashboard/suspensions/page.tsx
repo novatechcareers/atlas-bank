@@ -122,8 +122,7 @@ export default function AdminSuspensionsPage() {
     }
   };
 
-  const handleSaveCrypto = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSaveCrypto = async () => {
     if (!selectedCustomer) {
       setDetailsMessage("Select a customer first.");
       return;
