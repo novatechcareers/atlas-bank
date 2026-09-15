@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchCustomerSuspensionByEmail, getNewUserSession } from "@/lib/newUserData";
 import { DEMO_CUSTOMER_EMAIL } from "@/lib/adminData";
+import { supabase } from "@/lib/supabase";
 import FormattedText from "@/components/common/FormattedText";
 
 export default function SuspensionPage() {
@@ -13,12 +14,17 @@ export default function SuspensionPage() {
   const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
-    const loadSuspension = async () => {
+    const resolveCustomerEmail = () => {
       const newUserSession = getNewUserSession();
       const storedCustomerEmail = typeof window !== "undefined" ? window.localStorage.getItem("customerEmail") : null;
       const customerEmail = storedCustomerEmail || newUserSession?.customerEmail || DEMO_CUSTOMER_EMAIL;
       const currentIsNewUser = Boolean(newUserSession && customerEmail.toLowerCase() === newUserSession.customerEmail.toLowerCase());
       setIsNewUser(currentIsNewUser);
+      return { customerEmail, currentIsNewUser };
+    };
+
+    const loadSuspension = async () => {
+      const { customerEmail, currentIsNewUser } = resolveCustomerEmail();
 
       try {
         const suspension = await fetchCustomerSuspensionByEmail(customerEmail);
@@ -34,10 +40,22 @@ export default function SuspensionPage() {
       }
     };
 
-    loadSuspension();
-    const interval = window.setInterval(loadSuspension, 3000);
+    void loadSuspension();
 
-    return () => window.clearInterval(interval);
+    const { customerEmail } = resolveCustomerEmail();
+    if (!customerEmail) {
+      return;
+    }
+
+    const channel = supabase?.channel(`customer-suspension-live-${customerEmail}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${customerEmail}` }, () => {
+        void loadSuspension();
+      })
+      .subscribe();
+
+    return () => {
+      if (channel) void supabase?.removeChannel(channel);
+    };
   }, [router]);
 
   return (

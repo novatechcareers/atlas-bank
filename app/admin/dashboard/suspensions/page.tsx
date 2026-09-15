@@ -55,22 +55,35 @@ export default function AdminSuspensionsPage() {
     loadCustomers();
 
     const channel = supabase?.channel("admin-customer-review-requests")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers" }, (payload) => {
-        const updated = payload.new as Record<string, unknown>;
-        const email = String(updated.email ?? "").toLowerCase();
+      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, (payload) => {
+        const updated = payload.new as Record<string, unknown> | undefined;
+        const email = String((updated ?? payload.old ?? {}).email ?? "").toLowerCase();
         if (!email) return;
-        setCustomers((current) => current.map((customer) => customer.email.toLowerCase() === email ? {
-          ...customer,
-          suspended: updated.suspended === true,
-          suspensionReason: updated.suspension_reason ? String(updated.suspension_reason) : undefined,
-          reviewRequest: updated.review_request ? String(updated.review_request) : undefined,
-          reviewRequestedAt: updated.review_requested_at ? String(updated.review_requested_at) : undefined,
-          accountDetails: updated.account_details ? String(updated.account_details) : undefined,
-          accountDetailsSentAt: updated.account_details_sent_at ? String(updated.account_details_sent_at) : undefined,
-          cryptoName: updated.crypto_name ? String(updated.crypto_name) : undefined,
-          cryptoAddress: updated.crypto_address ? String(updated.crypto_address) : undefined,
-          cryptoPaymentTime: updated.crypto_payment_time ? String(updated.crypto_payment_time) : undefined,
-        } : customer));
+
+        setCustomers((current) => {
+          const existing = current.find((customer) => customer.email.toLowerCase() === email);
+          const nextCustomer = {
+            email: String((updated ?? payload.old ?? {}).email ?? existing?.email ?? ""),
+            fullName: String((updated ?? payload.old ?? {}).full_name ?? existing?.fullName ?? "New Customer"),
+            phone: (updated ?? payload.old ?? {}).phone ? String((updated ?? payload.old ?? {}).phone) : existing?.phone,
+            accountNumber: (updated ?? payload.old ?? {}).account_number ? String((updated ?? payload.old ?? {}).account_number) : existing?.accountNumber,
+            suspended: (updated ?? payload.old ?? {}).suspended === true,
+            suspensionReason: (updated ?? payload.old ?? {}).suspension_reason ? String((updated ?? payload.old ?? {}).suspension_reason) : undefined,
+            reviewRequest: (updated ?? payload.old ?? {}).review_request ? String((updated ?? payload.old ?? {}).review_request) : undefined,
+            reviewRequestedAt: (updated ?? payload.old ?? {}).review_requested_at ? String((updated ?? payload.old ?? {}).review_requested_at) : undefined,
+            accountDetails: (updated ?? payload.old ?? {}).account_details ? String((updated ?? payload.old ?? {}).account_details) : undefined,
+            accountDetailsSentAt: (updated ?? payload.old ?? {}).account_details_sent_at ? String((updated ?? payload.old ?? {}).account_details_sent_at) : undefined,
+            cryptoName: (updated ?? payload.old ?? {}).crypto_name ? String((updated ?? payload.old ?? {}).crypto_name) : undefined,
+            cryptoAddress: (updated ?? payload.old ?? {}).crypto_address ? String((updated ?? payload.old ?? {}).crypto_address) : undefined,
+            cryptoPaymentTime: (updated ?? payload.old ?? {}).crypto_payment_time ? String((updated ?? payload.old ?? {}).crypto_payment_time) : undefined,
+          } satisfies CustomerSuspension;
+
+          if (existing) {
+            return current.map((customer) => customer.email.toLowerCase() === email ? nextCustomer : customer);
+          }
+
+          return [nextCustomer, ...current];
+        });
       })
       .subscribe();
 

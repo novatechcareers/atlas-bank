@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTransferRequest, DEMO_CUSTOMER_EMAIL, getAvailableBalance } from "@/lib/adminData";
 import { fetchCustomerSuspensionByEmail, fetchTransferPinByEmail } from "@/lib/newUserData";
+import { supabase } from "@/lib/supabase";
 import TransferSummary from "@/components/dashboard/TransferSummary";
 import TransferNoticeModal from "@/components/common/TransferNoticeModal";
 
@@ -79,11 +80,44 @@ export default function TransferForm() {
   );
 
   useEffect(() => {
+    let isActive = true;
+    let disconnectListener: (() => void) | undefined;
+
     fetchTransferPinByEmail(DEMO_CUSTOMER_EMAIL)
-      .then(setTransferPin)
-      .catch(() => setTransferPin(null))
-      .finally(() => setIsLoadingTransferPin(false));
-  }, []);
+      .then((nextPin) => {
+        if (isActive) setTransferPin(nextPin);
+      })
+      .catch(() => {
+        if (isActive) setTransferPin(null);
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingTransferPin(false);
+      });
+
+    const channel = supabase?.channel(`dashboard-transfer-status-${DEMO_CUSTOMER_EMAIL}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${DEMO_CUSTOMER_EMAIL}` }, async () => {
+        const nextSuspension = await fetchCustomerSuspensionByEmail(DEMO_CUSTOMER_EMAIL);
+        if (!isActive) return;
+
+        if (nextSuspension?.suspended) {
+          setNotice(null);
+          router.push("/suspension");
+          return;
+        }
+
+        setNotice("lifted");
+      })
+      .subscribe();
+
+    disconnectListener = () => {
+      if (channel) void supabase?.removeChannel(channel);
+    };
+
+    return () => {
+      isActive = false;
+      disconnectListener?.();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("suspensionLifted") === "1") {

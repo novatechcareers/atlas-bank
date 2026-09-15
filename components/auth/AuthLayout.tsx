@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import AuthCard from "@/components/auth/AuthCard";
 
@@ -44,14 +45,19 @@ export default function AuthLayout({
             <span>ATLAS BANK</span>
           </div>
 
-          <button
-            className="theme-toggle"
-            type="button"
-            onClick={() => setDarkMode((current) => !current)}
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {darkMode ? "☀️" : "🌙"}
-          </button>
+          <div className="auth-topbar-actions">
+            <Link className="back-home-link" href="/">
+              ← Home
+            </Link>
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={() => setDarkMode((current) => !current)}
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {darkMode ? "☀️" : "🌙"}
+            </button>
+          </div>
         </div>
 
         <AuthCard title={title} description={description}>

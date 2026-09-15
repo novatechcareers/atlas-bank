@@ -7,6 +7,7 @@ import TopNavbar from "@/components/dashboard/TopNavbar";
 import TransferSummary from "@/components/dashboard/TransferSummary";
 import TransferNoticeModal from "@/components/common/TransferNoticeModal";
 import { createNewUserTransfer, fetchCustomerSuspensionByEmail, fetchTransferPinByEmail, getNewUserSession, refreshNewUserSessionBalance, type NewUserAccount } from "@/lib/newUserData";
+import { supabase } from "@/lib/supabase";
 
 const banks = ["Atlas Bank", "JPMorgan Chase", "Bank of America", "Wells Fargo", "Citibank", "HSBC", "Barclays", "Santander", "Deutsche Bank", "Standard Chartered"];
 const transferTypes = ["Internal Transfer", "Domestic Transfer", "International Wire"];
@@ -53,21 +54,58 @@ export default function NewUserTransferPage() {
   const validationMessage = hasInsufficientBalance ? "You do not have enough available balance to send this transfer." : parsedAmount <= 0 ? "Enter an amount greater than $0.00." : "";
 
   useEffect(() => {
+    let isActive = true;
+    let disconnectListener: (() => void) | undefined;
+
     const loadSession = async () => {
       const currentSession = await refreshNewUserSessionBalance() ?? getNewUserSession();
+      if (!isActive) return;
+
       setSession(currentSession);
+
       if (currentSession?.customerEmail) {
         fetchTransferPinByEmail(currentSession.customerEmail)
-          .then(setTransferPin)
-          .catch(() => setTransferPin(null))
-          .finally(() => setIsLoadingTransferPin(false));
-      } else {
-        setIsLoadingTransferPin(false);
+          .then((nextPin) => {
+            if (isActive) setTransferPin(nextPin);
+          })
+          .catch(() => {
+            if (isActive) setTransferPin(null);
+          })
+          .finally(() => {
+            if (isActive) setIsLoadingTransferPin(false);
+          });
+
+        const channel = supabase?.channel(`new-user-transfer-status-${currentSession.customerEmail}`)
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "customers", filter: `email=eq.${currentSession.customerEmail}` }, async () => {
+            const nextSuspension = await fetchCustomerSuspensionByEmail(currentSession.customerEmail);
+            if (!isActive) return;
+
+            if (nextSuspension?.suspended) {
+              setNotice(null);
+              router.push("/suspension");
+              return;
+            }
+
+            setNotice("lifted");
+          })
+          .subscribe();
+
+        disconnectListener = () => {
+          if (channel) void supabase?.removeChannel(channel);
+        };
+        return;
       }
+
+      if (isActive) setIsLoadingTransferPin(false);
     };
 
-    loadSession();
-  }, []);
+    void loadSession();
+
+    return () => {
+      isActive = false;
+      disconnectListener?.();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("suspensionLifted") === "1") {
